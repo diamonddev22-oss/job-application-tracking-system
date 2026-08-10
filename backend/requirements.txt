@@ -1,0 +1,20 @@
+# Core web framework
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+
+# Database (sync SQLAlchemy 2.0 + psycopg3 driver)
+sqlalchemy==2.0.51
+psycopg[binary]==3.3.4
+alembic==1.19.0
+
+# Settings / validation
+pydantic==2.13.4
+pydantic-settings==2.14.2
+email-validator==2.3.0
+
+# Auth
+pyjwt==2.13.0
+bcrypt==5.0.0
+
+# Object storage (S3/MinIO)
+boto3==1.43.66

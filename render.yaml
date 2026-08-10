@@ -1,0 +1,49 @@
+# Render Blueprint for the FastAPI backend. Deploy by connecting this repo in the Render
+# dashboard ("New" -> "Blueprint") - this describes the service so it doesn't have to be
+# clicked together by hand, but everything here can equally be set manually on a plain Web
+# Service if you'd rather skip Blueprints entirely.
+#
+# `sync: false` env vars are intentionally left out of this file (Render will prompt for them
+# on first deploy and store them server-side) - real secrets and per-environment values never
+# belong in a committed file. See backend/.env.example for what each one is for.
+services:
+  - type: web
+    name: jats-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # Migrations run on every deploy, same as the local Dockerfile - `alembic upgrade head` is
+    # additive/idempotent (see docs/system-design.md), never destructive, so this is safe to
+    # run unattended and keeps Neon's schema in sync without a manual step per deploy.
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.13
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION_MS
+        value: "86400000"
+      - key: MANAGER_DEFAULT_EMAIL
+        sync: false
+      - key: MANAGER_DEFAULT_PASSWORD
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_PUBLIC_ENDPOINT
+        sync: false
+      - key: S3_PUBLIC_URL
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        value: auto

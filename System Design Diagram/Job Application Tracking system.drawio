@@ -1,0 +1,190 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Page-1" id="DoILy3NYHmFIzR0eF3OC">
+    <mxGraphModel dx="2028" dy="1748" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-46" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-34">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Server(Manager)&lt;div&gt;Web Application&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="110" x="170" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-44" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-36">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1187.5" y="90" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=0;" value="Client(Bidder)" vertex="1">
+          <mxGeometry height="30" width="135" x="1120" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-5" parent="1" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;Job Application Tracking System&lt;/h1&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="50" width="445" x="203" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-11" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="5GBQGSEy-xuuzvNuvLKS-7" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Job Application search" vertex="1">
+          <mxGeometry height="40" width="160" x="1065" y="570" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-25" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-22">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Tailoring or Updating the Resume / Filling Application Form" vertex="1">
+          <mxGeometry height="60" width="160" x="1065" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-14" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-20" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1110" y="1120" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-16" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="5GBQGSEy-xuuzvNuvLKS-15" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1225" y="895" />
+              <mxPoint x="1225" y="1070" />
+              <mxPoint x="1315" y="1070" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-9" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="Validation-If the Job application URL is already existed in the Web server?&lt;br&gt;&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="150" width="150" x="1070" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-24" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1365" y="1050" />
+              <mxPoint x="1365" y="590" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-15" parent="1" style="whiteSpace=wrap;html=1;" value="Alert Notification-&quot;Retry, Job application already applied&quot;" vertex="1">
+          <mxGeometry height="60" width="120" x="1255" y="990" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-17" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="yes success" vertex="1">
+          <mxGeometry height="30" width="60" x="1220" y="940" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-18" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="no success" vertex="1">
+          <mxGeometry height="30" width="60" x="1085" y="1005" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-21" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=-0.019;entryY=0.408;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryPerimeter=0;" target="5GBQGSEy-xuuzvNuvLKS-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1057.5" y="1140" />
+              <mxPoint x="960" y="1140" />
+              <mxPoint x="960" y="664.5" />
+            </Array>
+            <mxPoint x="1042.5" y="1140" as="sourcePoint" />
+            <mxPoint x="1050" y="665" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-32" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1145" y="1260" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-20" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="Send the request to the server regarding the application applied attached resume" vertex="1">
+          <mxGeometry height="130" width="175" x="1057.5" y="1080" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-26" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-22" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Application Submit" vertex="1">
+          <mxGeometry height="50" width="160" x="1065" y="740" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-28" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="no success" vertex="1">
+          <mxGeometry height="30" width="60" x="985" y="1110" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-67" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-48">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-69" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="5GBQGSEy-xuuzvNuvLKS-49">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-34" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Login &amp;amp; authentication" vertex="1">
+          <mxGeometry height="30" width="135" x="157.5" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-39" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-35" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-37">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-35" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Verify the access status for tracking" vertex="1">
+          <mxGeometry height="60" width="150" x="1112.5" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-45" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-36" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-35">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-36" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Download or Install Job Application Tracking Chrome Extension" vertex="1">
+          <mxGeometry height="60" width="135" x="1120" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-38" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-37" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-42" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-37" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-41">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-37" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="If the access status is available?" vertex="1">
+          <mxGeometry height="130" width="150" x="1020" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-40" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Yes" vertex="1">
+          <mxGeometry height="30" width="60" x="1045" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-43" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-35">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1370" y="240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-70" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-49">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1460.03" y="420.07" />
+              <mxPoint x="1460.03" y="50" />
+              <mxPoint x="843.14" y="50" />
+              <mxPoint x="843.14" y="255.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-41" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Sign up into Server &amp;amp; wait until access status is available by manager permission" vertex="1">
+          <mxGeometry height="92.5" width="217.5" x="1206.25" y="373.75" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-65" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-57">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-66" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-61">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-48" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Manage the profile for Application" vertex="1">
+          <mxGeometry height="50" width="135" x="50" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-52" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-49" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="5GBQGSEy-xuuzvNuvLKS-50">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-49" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Manage the Bidder" vertex="1">
+          <mxGeometry height="50" width="170" x="310" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-50" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Review bidder register status &amp;amp; Give the permission" vertex="1">
+          <mxGeometry height="60" width="150" x="320" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-57" parent="1" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" value="Profile Metada" vertex="1">
+          <mxGeometry height="96" width="240" x="-260" y="207" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-60" parent="5GBQGSEy-xuuzvNuvLKS-57" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" value="Basic Info" vertex="1">
+          <mxGeometry height="40" width="240" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-64" parent="5GBQGSEy-xuuzvNuvLKS-57" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" value="Resume: file type" vertex="1">
+          <mxGeometry height="26" width="240" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-61" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Add, Edit or Delete profile" vertex="1">
+          <mxGeometry height="60" width="120" x="57.5" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-71" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Send the request to register into server database" vertex="1">
+          <mxGeometry height="67" width="160" x="952.5" y="-10" as="geometry" />
+        </mxCell>
+        <mxCell id="5GBQGSEy-xuuzvNuvLKS-72" edge="1" parent="1" source="5GBQGSEy-xuuzvNuvLKS-61" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.418;entryY=1.026;entryDx=0;entryDy=0;entryPerimeter=0;" target="5GBQGSEy-xuuzvNuvLKS-64">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

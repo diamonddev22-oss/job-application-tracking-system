@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Job Application Tracker",
+  "version": "0.1.0",
+  "description": "Automatically detects when you submit a job application and tracks it in your Job Application Tracking System account.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Track this application",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "options_page": "options/options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "sidePanel",
+    "notifications",
+    "tabs",
+    "webNavigation",
+    "webRequest"
+  ],
+  "host_permissions": ["<all_urls>"]
+}

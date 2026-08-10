@@ -1,0 +1,17 @@
+{
+  "name": "jats-chrome-extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Manifest V3 extension that captures manual job application submissions and sends them to the JATS backend.",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.19",
+    "typescript": "~5.9.3",
+    "vite": "^6.3.6"
+  }
+}

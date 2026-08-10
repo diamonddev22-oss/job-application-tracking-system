@@ -1,0 +1,119 @@
+name: jats
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jats-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-jats}
+      POSTGRES_USER: ${POSTGRES_USER:-jats}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jats_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jats}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: jats-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: jats-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-jats_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-jats_minio_password}
+      # Community MinIO only supports cluster-wide CORS (no per-bucket policy); the browser
+      # uploads resume files directly here via presigned URLs, so the frontend origin(s) need access.
+      MINIO_API_CORS_ALLOW_ORIGIN: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: jats-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set localminio http://minio:9000 ${MINIO_ROOT_USER:-jats_minio} ${MINIO_ROOT_PASSWORD:-jats_minio_password};
+      mc mb --ignore-existing localminio/${MINIO_BUCKET:-resumes};
+      mc anonymous set download localminio/${MINIO_BUCKET:-resumes};
+      "
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jats-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-jats}
+      DB_USER: ${POSTGRES_USER:-jats}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-jats_dev_password}
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-jats_minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-jats_minio_password}
+      S3_BUCKET: ${MINIO_BUCKET:-resumes}
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production-min-32-chars}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      MANAGER_DEFAULT_EMAIL: ${MANAGER_DEFAULT_EMAIL:-manager@jats.local}
+      MANAGER_DEFAULT_PASSWORD: ${MANAGER_DEFAULT_PASSWORD:-ChangeMe123!}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+    container_name: jats-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

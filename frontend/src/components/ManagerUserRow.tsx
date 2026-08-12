@@ -1,7 +1,9 @@
+import { Link } from 'react-router-dom';
 import { getErrorMessage } from '../api/errors';
 import { useApproveUserMutation, useDeleteUserMutation, useRejectUserMutation } from '../hooks/useManager';
-import type { ManagerUser } from '../types';
+import { APPLICATION_GOAL, type ManagerUser } from '../types';
 import { formatDate } from '../utils/format';
+import { GoalProgressBar } from './GoalProgressRing';
 import { AccountStatusBadge } from './StatusBadge';
 
 export function ManagerUserRow({ user }: { user: ManagerUser }) {
@@ -22,16 +24,30 @@ export function ManagerUserRow({ user }: { user: ManagerUser }) {
   };
 
   return (
-    <tr className="border-b border-slate-200 last:border-b-0">
+    <tr className="border-b border-slate-100 transition-colors last:border-b-0 hover:bg-slate-50/60">
       <td className="px-4 py-3">
-        <p className="font-medium text-slate-900">{user.email}</p>
-        <p className="text-xs text-slate-400">Joined {formatDate(user.createdAt)}</p>
+        <div className="flex items-center gap-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
+            {user.email.slice(0, 2).toUpperCase()}
+          </span>
+          <div>
+            <Link
+              to={`/manager/users/${user.id}`}
+              className="font-medium text-slate-900 hover:text-brand-700 hover:underline"
+            >
+              {user.email}
+            </Link>
+            <p className="text-xs text-slate-400">Joined {formatDate(user.createdAt)}</p>
+          </div>
+        </div>
         {error && <p className="mt-1 text-xs text-red-600">{getErrorMessage(error)}</p>}
       </td>
       <td className="px-4 py-3">
         <AccountStatusBadge status={user.status} />
       </td>
-      <td className="px-4 py-3 text-sm text-slate-600">{user.applicationCount}</td>
+      <td className="px-4 py-3">
+        <GoalProgressBar current={user.applicationCount} goal={APPLICATION_GOAL} />
+      </td>
       <td className="px-4 py-3">
         <div className="flex gap-2">
           {user.status !== 'ACTIVE' && (
@@ -39,7 +55,7 @@ export function ManagerUserRow({ user }: { user: ManagerUser }) {
               type="button"
               disabled={isPending}
               onClick={() => approveMutation.mutate(user.id)}
-              className="rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
+              className="btn-outline-success btn-sm"
             >
               Approve
             </button>
@@ -49,17 +65,12 @@ export function ManagerUserRow({ user }: { user: ManagerUser }) {
               type="button"
               disabled={isPending}
               onClick={() => rejectMutation.mutate(user.id)}
-              className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
+              className="btn-danger btn-sm"
             >
               Reject
             </button>
           )}
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={handleDelete}
-            className="rounded-md border border-red-300 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
-          >
+          <button type="button" disabled={isPending} onClick={handleDelete} className="btn-outline-danger btn-sm">
             Delete
           </button>
         </div>

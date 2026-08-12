@@ -64,6 +64,40 @@ export interface UserSummaryData {
   createdAt: string;
 }
 
+export type ApplicationStatus =
+  | 'APPLIED'
+  | 'SCREENING'
+  | 'INTERVIEW'
+  | 'OFFER'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'WITHDRAWN';
+
+/** Matches backend/app/tracking/schemas.py's JobApplicationResponse — this is the account's actual,
+ * persisted application record (not a client-side log of tracking *attempts*), which is exactly why
+ * it's the source of truth for the side panel's "recent activity" list — see sidepanel.ts. */
+export interface JobApplication {
+  id: string;
+  company: string;
+  jobTitle: string;
+  jobUrl: string;
+  status: ApplicationStatus;
+  appliedDate: string;
+  screenshotUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Matches backend/app/common/schemas.py's PageResponse envelope. */
+export interface PageResponse<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  last: boolean;
+}
+
 /** Job details captured (e.g. from schema.org JobPosting markup) while browsing a job listing,
  * kept per-tab so it's still available later when the user reaches an application confirmation
  * page/state that no longer has that structured data. */
@@ -116,3 +150,12 @@ export type ContentScriptMessage =
   | ApplicationSubmitDetectedMessage
   | SubmitIntentDetectedMessage
   | CheckSubmitArmedMessage;
+
+/** Broadcast by background.ts after every tracking attempt (success or not) so any currently-open
+ * side panel knows to re-fetch "recent activity" from the server — see sidepanel.ts. The panel is
+ * the source of truth's *reader*, not a cache of its own: this message carries no data, it's just a
+ * "something changed, go re-fetch" poke, since the actual record already lives on the backend by
+ * the time this fires. */
+export interface ActivityUpdatedMessage {
+  type: 'JATS_ACTIVITY_UPDATED';
+}

@@ -43,12 +43,19 @@ def get_overview(db: Session) -> OverviewStatsResponse:
     )
 
 
-def get_application_stats(db: Session) -> ApplicationStatsResponse:
+def get_application_stats(db: Session, user_id_filter: uuid.UUID | None = None) -> ApplicationStatsResponse:
+    """Aggregate (no `user_id_filter`) or single-user (with it) application stats — same shape
+    either way, so the manager dashboard's org-wide chart and a single applicant's detail-page
+    chart can share one component on the frontend."""
+    base_query = db.query(JobApplication)
+    if user_id_filter is not None:
+        base_query = base_query.filter(JobApplication.user_id == user_id_filter)
+
     breakdown: dict[ApplicationStatus, int] = {}
     for status_value in ApplicationStatus:
-        breakdown[status_value] = db.query(JobApplication).filter(JobApplication.status == status_value).count()
+        breakdown[status_value] = base_query.filter(JobApplication.status == status_value).count()
 
-    return ApplicationStatsResponse(statusBreakdown=breakdown, dailyTrend=_build_daily_trend(db))
+    return ApplicationStatsResponse(statusBreakdown=breakdown, dailyTrend=_build_daily_trend(db, user_id_filter))
 
 
 def list_users(
@@ -71,6 +78,12 @@ def list_users(
         totalPages=total_pages,
         last=last,
     )
+
+
+def get_user(db: Session, user_id: uuid.UUID) -> ManagerUserResponse:
+    user = _find_managed_user(db, user_id)
+    application_count = db.query(JobApplication).filter(JobApplication.user_id == user_id).count()
+    return _to_response(user, application_count)
 
 
 def approve(db: Session, user_id: uuid.UUID) -> ManagerUserResponse:
@@ -176,14 +189,14 @@ def _application_counts_for(db: Session, user_ids: list[uuid.UUID]) -> dict[uuid
     return dict(rows)
 
 
-def _build_daily_trend(db: Session) -> list[DailyApplicationCount]:
+def _build_daily_trend(db: Session, user_id_filter: uuid.UUID | None = None) -> list[DailyApplicationCount]:
     since = date.today() - timedelta(days=_TREND_DAYS - 1)
-    rows = (
-        db.query(JobApplication.applied_date, func.count(JobApplication.id))
-        .filter(JobApplication.applied_date >= since)
-        .group_by(JobApplication.applied_date)
-        .all()
+    query = db.query(JobApplication.applied_date, func.count(JobApplication.id)).filter(
+        JobApplication.applied_date >= since
     )
+    if user_id_filter is not None:
+        query = query.filter(JobApplication.user_id == user_id_filter)
+    rows = query.group_by(JobApplication.applied_date).all()
     counts_by_date = dict(rows)
 
     trend: list[DailyApplicationCount] = []

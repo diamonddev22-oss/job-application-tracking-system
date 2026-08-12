@@ -185,10 +185,14 @@ Notifications
 
 Manager Dashboard (role = MANAGER)
   GET    /manager/stats/overview         Total users, total applications
-  GET    /manager/stats/applications     Status breakdown & trends
+  GET    /manager/stats/applications     Status breakdown & trends (optional ?userId= to scope to one applicant)
   GET    /manager/users                  User list + activity metrics
+  GET    /manager/users/{id}             Single applicant + activity metrics (for the detail page)
   PATCH  /manager/users/{id}/approve
   PATCH  /manager/users/{id}/reject
+  DELETE /manager/users/{id}             Hard-deletes the account and all owned data
+  GET    /manager/applications           Cross-user application feed (optional ?userId=, ?status=)
+  DELETE /manager/applications/{id}      Deletes a single tracked application
 ```
 
 ### `POST /application-events` contract

@@ -1,6 +1,5 @@
-import { fetchCurrentUser, getConfig, saveConfig, submitApplicationEvent } from '../api/client';
-import { getRecentActivity, onRecentActivityChanged, pushRecentActivity, type RecentActivityEntry } from '../recent-activity';
-import type { AccountStatus, ApplicationEventResponse, StoredConfig } from '../types';
+import { fetchCurrentUser, fetchRecentApplications, getConfig, saveConfig, submitApplicationEvent } from '../api/client';
+import type { AccountStatus, ActivityUpdatedMessage, ApplicationEventResponse, JobApplication, StoredConfig } from '../types';
 
 const form = document.getElementById('applicationForm') as HTMLFormElement;
 const companyInput = document.getElementById('company') as HTMLInputElement;
@@ -77,45 +76,22 @@ function formatRelativeTime(timestampMs: number): string {
   return `${diffDays}d ago`;
 }
 
-const OUTCOME_LABEL: Record<RecentActivityEntry['outcome'], string> = {
-  SUCCESS: 'Tracked',
-  DUPLICATE: 'Duplicate',
-  ERROR: 'Error',
+const STATUS_LABEL: Record<JobApplication['status'], string> = {
+  APPLIED: 'Applied',
+  SCREENING: 'Screening',
+  INTERVIEW: 'Interview',
+  OFFER: 'Offer',
+  ACCEPTED: 'Accepted',
+  REJECTED: 'Rejected',
+  WITHDRAWN: 'Withdrawn',
 };
 
-/** Renders the screenshot badge for one activity entry, or null when there's nothing worth
- * showing (e.g. a future caller that never attempts a screenshot at all). Failed/skipped badges
- * carry the reason as a native tooltip so a "why no screenshot?" question is answerable by
- * hovering, without needing the service worker console. */
-function screenshotBadge(entry: RecentActivityEntry): HTMLSpanElement | null {
-  const badge = document.createElement('span');
-  badge.classList.add('badge');
-
-  switch (entry.screenshotStatus) {
-    case 'attached':
-      badge.classList.add('badge-screenshot-attached');
-      badge.textContent = '📷 Screenshot attached';
-      return badge;
-    case 'skipped':
-      badge.classList.add('badge-screenshot-skipped');
-      badge.textContent = 'No screenshot';
-      badge.title = entry.screenshotDetail ?? 'Screenshot capture was skipped.';
-      return badge;
-    case 'failed':
-      badge.classList.add('badge-screenshot-failed');
-      badge.textContent = 'Screenshot failed';
-      badge.title = entry.screenshotDetail ?? 'Screenshot upload failed.';
-      return badge;
-    case 'not_applicable':
-      return null;
-  }
-}
-
-function renderActivity(entries: RecentActivityEntry[]): void {
+function renderActivity(applications: JobApplication[]): void {
   activityList.innerHTML = '';
 
-  if (entries.length === 0) {
-    activityEmpty.classList.remove('hidden');
+  if (applications.length === 0) {
+    activityEmpty.classList.remove('hidden', 'activity-error');
+    activityEmpty.textContent = 'Nothing tracked yet.';
     activityList.classList.add('hidden');
     return;
   }
@@ -123,7 +99,7 @@ function renderActivity(entries: RecentActivityEntry[]): void {
   activityEmpty.classList.add('hidden');
   activityList.classList.remove('hidden');
 
-  for (const entry of entries) {
+  for (const application of applications) {
     const item = document.createElement('li');
     item.className = 'activity-item';
 
@@ -132,16 +108,16 @@ function renderActivity(entries: RecentActivityEntry[]): void {
 
     const title = document.createElement('a');
     title.className = 'activity-title';
-    title.href = entry.jobUrl;
+    title.href = application.jobUrl;
     title.target = '_blank';
     title.rel = 'noreferrer';
-    title.textContent = `${entry.jobTitle} · ${entry.company}`;
-    title.title = `${entry.jobTitle} at ${entry.company}`;
+    title.textContent = `${application.jobTitle} · ${application.company}`;
+    title.title = `${application.jobTitle} at ${application.company}`;
     top.appendChild(title);
 
     const time = document.createElement('span');
     time.className = 'activity-time';
-    time.textContent = formatRelativeTime(entry.trackedAt);
+    time.textContent = formatRelativeTime(Date.parse(application.createdAt));
     top.appendChild(time);
 
     item.appendChild(top);
@@ -149,24 +125,55 @@ function renderActivity(entries: RecentActivityEntry[]): void {
     const badges = document.createElement('div');
     badges.className = 'activity-badges';
 
-    const outcomeBadge = document.createElement('span');
-    outcomeBadge.classList.add('badge', `badge-outcome-${entry.outcome.toLowerCase()}`);
-    outcomeBadge.textContent = OUTCOME_LABEL[entry.outcome];
-    badges.appendChild(outcomeBadge);
+    const statusBadge = document.createElement('span');
+    statusBadge.classList.add('badge', `badge-status-${application.status.toLowerCase()}`);
+    statusBadge.textContent = STATUS_LABEL[application.status];
+    badges.appendChild(statusBadge);
 
-    const shotBadge = screenshotBadge(entry);
-    if (shotBadge) badges.appendChild(shotBadge);
+    if (application.screenshotUrl) {
+      const shotBadge = document.createElement('span');
+      shotBadge.classList.add('badge', 'badge-screenshot-attached');
+      shotBadge.textContent = '📷 Screenshot';
+      badges.appendChild(shotBadge);
+    }
 
     item.appendChild(badges);
     activityList.appendChild(item);
   }
 }
 
+/** Recent activity always reflects the logged-in account's actual, persisted applications on the
+ * server (GET /api/applications, newest first) — never a local, per-browser-install log — so it's
+ * identical whether the user opens this panel on this machine, a different one, or after
+ * reinstalling the extension entirely, and always matches what they and their manager see on the
+ * web dashboard. */
 async function loadActivity(): Promise<void> {
-  renderActivity(await getRecentActivity());
+  const config = await getConfig();
+  if (!config.token) {
+    activityList.classList.add('hidden');
+    activityEmpty.classList.remove('hidden', 'activity-error');
+    activityEmpty.textContent = 'Log in to see your recent activity.';
+    return;
+  }
+
+  try {
+    renderActivity(await fetchRecentApplications());
+  } catch (error) {
+    activityList.classList.add('hidden');
+    activityEmpty.classList.remove('hidden');
+    activityEmpty.classList.add('activity-error');
+    activityEmpty.textContent =
+      error instanceof Error ? error.message : 'Failed to load recent activity.';
+  }
 }
 
-onRecentActivityChanged(renderActivity);
+// background.ts pokes this whenever an auto-tracked submission succeeds — see
+// ActivityUpdatedMessage in types/index.ts for why this carries no data of its own.
+chrome.runtime.onMessage.addListener((message: ActivityUpdatedMessage) => {
+  if (message.type === 'JATS_ACTIVITY_UPDATED') {
+    void loadActivity();
+  }
+});
 
 openOptionsBtn.addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
@@ -189,20 +196,10 @@ form.addEventListener('submit', async (event) => {
       timestamp: new Date().toISOString(),
     });
 
-    // No screenshot for manual entries - there's no "moment of submission" to capture a page for,
-    // since the user is just filling in this form well after the fact.
-    await pushRecentActivity({
-      company,
-      jobTitle,
-      jobUrl,
-      trackedAt: Date.now(),
-      outcome: response.status,
-      screenshotStatus: 'not_applicable',
-    });
-
     if (response.status === 'SUCCESS') {
       showStatus(response.message, 'success');
       form.reset();
+      void loadActivity(); // pull the newly-created record straight from the server
     } else if (response.status === 'DUPLICATE') {
       showStatus(response.message, 'duplicate');
     } else {

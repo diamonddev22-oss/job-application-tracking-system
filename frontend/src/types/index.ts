@@ -1,5 +1,10 @@
 export type Role = 'USER' | 'MANAGER';
 
+/** Target application count used to visualize progress on dashboards — a simple, fixed job-search
+ * goal rather than something configurable per user (keeps the "goal" charts meaningful without
+ * needing a settings page or backend field for it). */
+export const APPLICATION_GOAL = 100;
+
 export type AccountStatus = 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED';
 
 export const ACCOUNT_STATUSES: AccountStatus[] = ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED'];

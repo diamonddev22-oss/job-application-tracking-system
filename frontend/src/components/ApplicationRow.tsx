@@ -11,7 +11,7 @@ export function ApplicationRow({ application }: { application: JobApplication })
   const historyQuery = useApplicationHistoryQuery(application.id, expanded);
 
   return (
-    <div className="border-b border-slate-200 py-4 last:border-b-0">
+    <div className="border-b border-slate-100 py-4 transition-colors last:border-b-0 hover:bg-slate-50/60">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           {application.screenshotUrl && (
@@ -25,7 +25,7 @@ export function ApplicationRow({ application }: { application: JobApplication })
               href={application.jobUrl}
               target="_blank"
               rel="noreferrer"
-              className="font-medium text-slate-900 hover:text-brand-600"
+              className="font-semibold text-slate-900 hover:text-brand-600"
             >
               {application.jobTitle}
             </a>
@@ -34,7 +34,7 @@ export function ApplicationRow({ application }: { application: JobApplication })
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <ApplicationStatusBadge status={application.status} />
           <button
             type="button"
@@ -47,7 +47,7 @@ export function ApplicationRow({ application }: { application: JobApplication })
       </div>
 
       {expanded && (
-        <div className="mt-3 rounded-md bg-slate-50 p-3">
+        <div className="mt-3 rounded-lg bg-slate-50 p-3">
           {historyQuery.isLoading && (
             <div className="flex justify-center py-2">
               <Spinner size="sm" />

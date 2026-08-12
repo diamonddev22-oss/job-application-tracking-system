@@ -202,29 +202,38 @@ button:disabled {
   border-radius: 999px;
 }
 
-.badge-outcome-success {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.badge-outcome-duplicate {
-  background: #fef9c3;
-  color: #854d0e;
-}
-
-.badge-outcome-error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.badge-screenshot-attached {
+.badge-status-applied,
+.badge-status-screening {
   background: #dbeafe;
   color: #1d4ed8;
 }
 
-.badge-screenshot-skipped,
-.badge-screenshot-failed {
+.badge-status-interview {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.badge-status-offer,
+.badge-status-accepted {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge-status-withdrawn {
   background: #f1f5f9;
   color: #64748b;
-  cursor: help;
+}
+
+.badge-screenshot-attached {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.activity-error {
+  color: #991b1b;
 }

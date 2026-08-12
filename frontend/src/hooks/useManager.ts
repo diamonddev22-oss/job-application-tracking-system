@@ -4,6 +4,7 @@ import {
   deleteApplication,
   deleteUser,
   getApplicationStats,
+  getManagedUser,
   getOverviewStats,
   listAllApplications,
   listManagedUsers,
@@ -19,10 +20,10 @@ export function useOverviewStatsQuery() {
   });
 }
 
-export function useApplicationStatsQuery() {
+export function useApplicationStatsQuery(userId?: string) {
   return useQuery({
-    queryKey: ['manager', 'application-stats'],
-    queryFn: getApplicationStats,
+    queryKey: ['manager', 'application-stats', userId ?? null],
+    queryFn: () => getApplicationStats(userId),
   });
 }
 
@@ -30,6 +31,14 @@ export function useManagedUsersQuery(params: ListManagedUsersParams) {
   return useQuery({
     queryKey: ['manager', 'users', params],
     queryFn: () => listManagedUsers(params),
+  });
+}
+
+export function useManagedUserQuery(userId: string) {
+  return useQuery({
+    queryKey: ['manager', 'users', userId],
+    queryFn: () => getManagedUser(userId),
+    enabled: Boolean(userId),
   });
 }
 

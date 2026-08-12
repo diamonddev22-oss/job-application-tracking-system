@@ -5,6 +5,7 @@ import { ExtensionPage } from '../pages/ExtensionPage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { ManagerDashboardPage } from '../pages/ManagerDashboardPage';
+import { ManagerUserDetailPage } from '../pages/ManagerUserDetailPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { RegisterPage } from '../pages/RegisterPage';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -24,6 +25,7 @@ export function AppRoutes() {
 
         <Route element={<ProtectedRoute allowedRoles={['MANAGER']} />}>
           <Route path="manager" element={<ManagerDashboardPage />} />
+          <Route path="manager/users/:userId" element={<ManagerUserDetailPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

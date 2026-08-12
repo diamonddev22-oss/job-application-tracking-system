@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { getErrorMessage } from '../api/errors';
 import { useDeleteApplicationMutation } from '../hooks/useManager';
 import type { ManagerApplication } from '../types';
@@ -5,7 +6,12 @@ import { formatDate } from '../utils/format';
 import { ScreenshotThumbnail } from './ScreenshotThumbnail';
 import { ApplicationStatusBadge } from './StatusBadge';
 
-export function ManagerApplicationRow({ application }: { application: ManagerApplication }) {
+interface ManagerApplicationRowProps {
+  application: ManagerApplication;
+  showApplicant?: boolean;
+}
+
+export function ManagerApplicationRow({ application, showApplicant = true }: ManagerApplicationRowProps) {
   const deleteMutation = useDeleteApplicationMutation();
 
   const handleDelete = () => {
@@ -19,8 +25,14 @@ export function ManagerApplicationRow({ application }: { application: ManagerApp
   };
 
   return (
-    <tr className="border-b border-slate-200 last:border-b-0">
-      <td className="px-4 py-3 text-sm text-slate-600">{application.userEmail}</td>
+    <tr className="border-b border-slate-100 transition-colors last:border-b-0 hover:bg-slate-50/60">
+      {showApplicant && (
+        <td className="px-4 py-3 text-sm text-slate-600">
+          <Link to={`/manager/users/${application.userId}`} className="hover:text-brand-700 hover:underline">
+            {application.userEmail}
+          </Link>
+        </td>
+      )}
       <td className="px-4 py-3">
         <a
           href={application.jobUrl}
@@ -50,7 +62,7 @@ export function ManagerApplicationRow({ application }: { application: ManagerApp
           type="button"
           disabled={deleteMutation.isPending}
           onClick={handleDelete}
-          className="rounded-md border border-red-300 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+          className="btn-outline-danger btn-sm"
         >
           Delete
         </button>

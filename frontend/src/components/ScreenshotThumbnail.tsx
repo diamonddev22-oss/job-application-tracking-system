@@ -26,7 +26,7 @@ export function ScreenshotThumbnail({ url, label }: { url: string | null; label:
         type="button"
         onClick={() => setOpen(true)}
         title="View application screenshot"
-        className="block shrink-0 overflow-hidden rounded border border-slate-200 transition hover:border-brand-400"
+        className="block shrink-0 overflow-hidden rounded-md border border-slate-200 shadow-sm transition hover:border-brand-400 hover:shadow"
       >
         <img src={url} alt={`Screenshot of ${label}`} className="h-12 w-16 object-cover" />
       </button>

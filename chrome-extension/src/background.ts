@@ -28,7 +28,6 @@
 // own instructional copy; layer 1 (URL pattern) is specific enough to trust unconditionally.
 import { createScreenshotUploadUrl, getConfig, submitApplicationEvent, API_BASE_URL } from './api/client';
 import { APPLY_REQUEST_PATTERN, SUCCESS_URL_PATTERN } from './detection-patterns';
-import { pushRecentActivity } from './recent-activity';
 import { guessCompanyFromUrl } from './url-heuristics';
 import type {
   ApplicationSubmitDetectedMessage,
@@ -124,15 +123,83 @@ async function markReported(tabId: number, jobUrl: string): Promise<void> {
   await chrome.storage.session.set({ [reportedKey(tabId)]: state });
 }
 
-function notify(title: string, message: string): void {
-  chrome.notifications
-    .create({
-      type: 'basic',
-      iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-      title,
-      message,
-    })
-    .catch((error) => console.warn('[JATS] failed to show notification', error));
+/** See ActivityUpdatedMessage in types/index.ts. Errors (most commonly "no side panel is open to
+ * receive this") are expected and harmless — the whole point is this is best-effort. */
+function notifyActivityUpdated(): void {
+  chrome.runtime.sendMessage({ type: 'JATS_ACTIVITY_UPDATED' }).catch(() => undefined);
+}
+
+/** In-progress stage of a single tracking notification vs. its terminal state.
+ *
+ * Platform quirks this works around, found by testing this on Windows:
+ *  1. `type: 'progress'` (with a numeric progress bar) is a ChromeOS-first feature — on Windows/Mac,
+ *     Chrome's native-toast integration doesn't reliably render the bar at all, so the percentage
+ *     was invisible; a plain "(step/total)" count in the message text works everywhere instead.
+ *  2. A notification's on-screen banner auto-dismisses into the OS notification tray after just a
+ *     few seconds by *default* — its data can still change after that, but the change isn't
+ *     visibly seen if the banner already vanished from the screen. Since this whole detect ->
+ *     capture -> upload -> send flow can easily finish within that same short window,
+ *     `requireInteraction: true` pins the banner on-screen for its entire duration. Only the
+ *     terminal state drops it, and gets explicitly auto-cleared shortly after — otherwise it would
+ *     sit there needing a manual dismiss.
+ *  3. The big one: `chrome.notifications.update()` on Windows reliably repaints the visible banner
+ *     on its *first* call for a given id, but every call after that is silently throttled/coalesced
+ *     by the OS and never repaints on-screen — confirmed independently by multiple reports of this
+ *     exact symptom (e.g. https://stackoverflow.com/q/61300348, https://stackoverflow.com/q/58541634),
+ *     not something fixable purely from the extension side. This is why the "(2/5) Capturing
+ *     screenshot…" stage could get stuck on-screen forever even though the real upload/tracking
+ *     work underneath had long since finished successfully — `update()` was doing exactly what it's
+ *     documented to do (the *data* did change), Windows just wasn't repainting to reflect it. The
+ *     verified workaround is to `clear()` the notification and `create()` a fresh one for every
+ *     single stage instead of ever calling `update()` — Windows always repaints a newly-created
+ *     toast — at the cost of a brief flicker/re-animate per stage, which is an acceptable trade for
+ *     the status actually being visible. A short pause between clear() and create() avoids a race
+ *     where the OS hasn't finished tearing down the old banner before the new one is asked for. */
+type NotificationStage = { kind: 'progress'; step: number; totalSteps: number } | { kind: 'done' };
+
+const DONE_NOTIFICATION_AUTOCLEAR_MS = 8_000;
+const RECREATE_NOTIFICATION_DELAY_MS = 150;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function upsertNotification(id: string, title: string, message: string, stage: NotificationStage): Promise<void> {
+  const options: chrome.notifications.NotificationOptions =
+    stage.kind === 'progress'
+      ? {
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
+          title,
+          message: `(${stage.step}/${stage.totalSteps}) ${message}`,
+          requireInteraction: true,
+        }
+      : {
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
+          title,
+          message,
+          requireInteraction: false,
+        };
+
+  try {
+    await chrome.notifications.clear(id);
+  } catch (error) {
+    console.debug('[JATS] notifications.clear failed for', id, '(likely nothing to clear yet)', error);
+  }
+  await sleep(RECREATE_NOTIFICATION_DELAY_MS);
+
+  let shown = false;
+  try {
+    await chrome.notifications.create(id, options as chrome.notifications.NotificationCreateOptions);
+    shown = true;
+  } catch (error) {
+    console.warn('[JATS] failed to show notification', id, error);
+  }
+
+  if (shown && stage.kind === 'done') {
+    setTimeout(() => chrome.notifications.clear(id).catch(() => undefined), DONE_NOTIFICATION_AUTOCLEAR_MS);
+  }
 }
 
 // content.ts runs in every frame on the page (manifest's `all_frames: true` — needed because
@@ -185,10 +252,19 @@ type ScreenshotOutcome =
 // confirmation message that matters is virtually always what's on-screen at detection time anyway.
 // Never allowed to block or fail the actual tracking call: any error here just means the
 // application is reported without a screenshot, same as before this feature existed. Every outcome
-// (not just failures) is logged with the [JATS] tag, and surfaced to the side panel via
-// recent-activity.ts, precisely so a "why didn't I get a screenshot" question is answerable without
-// guessing - open chrome://extensions -> this extension -> "service worker" to see these logs live.
-async function captureAndUploadScreenshot(tabId: number): Promise<ScreenshotOutcome> {
+// (not just failures) is logged with the [JATS] tag and reflected in the live tracking notification
+// (see upsertNotification), precisely so a "why didn't I get a screenshot" question is answerable
+// without guessing - open chrome://extensions -> this extension -> "service worker" to see these
+// logs live.
+async function captureAndUploadScreenshot(
+  tabId: number,
+  // Awaited at every call site (not fire-and-forget) — see upsertNotification's caller in
+  // reportApplicationSubmission for why: two un-awaited chrome.notifications.update() calls for the
+  // same id race each other's underlying IPC round-trip with no guaranteed completion order, so a
+  // "Capturing…"/"Uploading…" update could resolve *after* a later stage's, permanently clobbering
+  // the notification with a stale message. Awaiting each stage in strict sequence rules that out.
+  onStage?: (message: string, step: number) => Promise<void>,
+): Promise<ScreenshotOutcome> {
   const tab = await getTab(tabId);
   // chrome.tabs.captureVisibleTab captures whatever is currently on-screen in the *window*, not
   // necessarily this specific tab - if the user already switched to a different tab by the time
@@ -199,6 +275,7 @@ async function captureAndUploadScreenshot(tabId: number): Promise<ScreenshotOutc
     return { status: 'skipped', detail };
   }
 
+  await onStage?.('Capturing screenshot…', 2);
   let dataUrl: string;
   try {
     dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
@@ -218,6 +295,7 @@ async function captureAndUploadScreenshot(tabId: number): Promise<ScreenshotOutc
   }
   console.debug('[JATS] captured screenshot for tab', tabId, '-', blob.size, 'bytes');
 
+  await onStage?.('Uploading screenshot…', 3);
   try {
     const upload = await createScreenshotUploadUrl('image/png');
     const putResponse = await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'image/png' }, body: blob });
@@ -227,6 +305,7 @@ async function captureAndUploadScreenshot(tabId: number): Promise<ScreenshotOutc
       return { status: 'failed', detail };
     }
     console.debug('[JATS] screenshot uploaded successfully:', upload.key);
+    await onStage?.('Screenshot uploaded — finishing up…', 4);
     return { status: 'attached', key: upload.key };
   } catch (error) {
     // Most common real-world cause: the backend/S3 storage is unreachable (e.g. MinIO isn't
@@ -289,8 +368,27 @@ async function reportApplicationSubmission(
 
   const company = context?.company ?? guessCompanyFromUrl(jobUrl);
   const jobTitle = context?.jobTitle ?? reportedTitle;
-  const screenshot = await captureAndUploadScreenshot(tabId);
+  const subjectLine = `${jobTitle || 'Job application'} at ${company || 'this company'}`;
+
+  // One notification, updated in place through each stage (rather than a burst of separate toasts)
+  // so the user sees a single running status - "detected -> capturing/uploading screenshot ->
+  // sending to server -> tracked" - and can tell at a glance it's still working rather than stuck.
+  // Unique per submission (not just per tab) since a tab could in principle trigger two distinct
+  // detections outside the dedupe cooldown.
+  const notificationId = `jats-track-${tabId}-${Date.now()}`;
+  // Always awaited by every caller below - see the comment on captureAndUploadScreenshot's onStage
+  // parameter for why an un-awaited version of this previously let stages clobber each other out of
+  // order.
+  const TOTAL_STEPS = 5; // detected, capturing, uploading, finishing, sending — see the step numbers passed below
+  const progress = (message: string, step: number) =>
+    upsertNotification(notificationId, 'Tracking application…', message, { kind: 'progress', step, totalSteps: TOTAL_STEPS });
+
+  await progress(`Detected — ${subjectLine}`, 1);
+
+  const screenshot = await captureAndUploadScreenshot(tabId, progress);
   const screenshotKey = screenshot.status === 'attached' ? screenshot.key : undefined;
+
+  await progress('Sending application details to server…', 5);
 
   try {
     const response = await submitApplicationEvent({
@@ -304,27 +402,29 @@ async function reportApplicationSubmission(
 
     console.debug('[JATS] auto-track submission result:', response.status, response.message);
 
-    await pushRecentActivity({
-      company,
-      jobTitle,
-      jobUrl,
-      trackedAt: Date.now(),
-      outcome: response.status,
-      screenshotStatus: screenshot.status,
-      screenshotDetail: screenshot.status !== 'attached' ? screenshot.detail : undefined,
-    });
-
     if (response.status === 'SUCCESS') {
-      notify(
+      // The account's applications list on the server is now the source of truth for "recent
+      // activity" (see sidepanel.ts) rather than a local, per-browser-install log — so a real
+      // record only needs to exist there, and any open side panel just needs a poke to go re-fetch
+      // it. Silently ignored if nothing's listening (no side panel open right now).
+      notifyActivityUpdated();
+      await upsertNotification(
+        notificationId,
         screenshot.status === 'attached'
           ? 'Application tracked automatically (with screenshot)'
           : 'Application tracked automatically (no screenshot)',
-        `${jobTitle} at ${company}`,
+        subjectLine,
+        { kind: 'done' },
       );
+    } else {
+      // DUPLICATE / ERROR: stay quiet rather than showing a toast for a page the user already
+      // tracked - clear the in-progress notification instead of leaving it stuck mid-way.
+      chrome.notifications.clear(notificationId).catch(() => undefined);
     }
-    // DUPLICATE / ERROR: stay quiet rather than showing a toast for a page the user already tracked.
   } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     console.warn('[JATS] failed to auto-track application', error);
+    await upsertNotification(notificationId, 'Failed to track application', `${subjectLine} — ${detail}`, { kind: 'done' });
   }
 }
 

@@ -3,7 +3,9 @@ import type {
   ApplicationEventRequest,
   ApplicationEventResponse,
   AuthResponseData,
+  JobApplication,
   LoginResponse,
+  PageResponse,
   ScreenshotUploadUrlResponse,
   StoredConfig,
   UserSummaryData,
@@ -113,6 +115,30 @@ export async function submitApplicationEvent(
   }
 
   return body;
+}
+
+/** The account's own most-recently-tracked applications, straight from the backend — this is what
+ * powers the side panel's "Recent activity" list (see sidepanel.ts). Deliberately not cached
+ * client-side: it's account data, not per-browser-install state, so it has to come from wherever
+ * the user is actually logged in (this device or any other) rather than a local log of what *this*
+ * browser install happened to submit. */
+export async function fetchRecentApplications(size = 8): Promise<JobApplication[]> {
+  const config = await getConfig();
+  if (!config.token) {
+    throw new Error('Not logged in.');
+  }
+
+  const response = await safeFetch(`/applications?page=0&size=${size}`, {
+    headers: { Authorization: `Bearer ${config.token}` },
+  });
+
+  const envelope = (await response.json().catch(() => null)) as ApiEnvelope<PageResponse<JobApplication>> | null;
+
+  if (!response.ok || !envelope?.data) {
+    throw new Error(envelope?.message ?? `Failed to load recent activity (${response.status})`);
+  }
+
+  return envelope.data.items;
 }
 
 /** Gets a presigned S3/MinIO PUT URL for a screenshot, scoped to the logged-in user - the caller

@@ -26,8 +26,11 @@ def overview(db: Session = Depends(get_db)) -> ApiResponse[OverviewStatsResponse
 
 
 @router.get("/stats/applications", response_model=ApiResponse[ApplicationStatsResponse])
-def application_stats(db: Session = Depends(get_db)) -> ApiResponse[ApplicationStatsResponse]:
-    return ApiResponse.of(service.get_application_stats(db))
+def application_stats(
+    userId: uuid.UUID | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> ApiResponse[ApplicationStatsResponse]:
+    return ApiResponse.of(service.get_application_stats(db, userId))
 
 
 @router.get("/users", response_model=ApiResponse[PageResponse[ManagerUserResponse]])
@@ -49,6 +52,11 @@ def list_applications(
     db: Session = Depends(get_db),
 ) -> ApiResponse[PageResponse[ManagerApplicationResponse]]:
     return ApiResponse.of(service.list_all_applications(db, userId, status, page, size))
+
+
+@router.get("/users/{user_id}", response_model=ApiResponse[ManagerUserResponse])
+def get_user(user_id: uuid.UUID, db: Session = Depends(get_db)) -> ApiResponse[ManagerUserResponse]:
+    return ApiResponse.of(service.get_user(db, user_id))
 
 
 @router.patch("/users/{user_id}/approve", response_model=ApiResponse[ManagerUserResponse])

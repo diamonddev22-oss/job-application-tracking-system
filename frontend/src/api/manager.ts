@@ -15,8 +15,10 @@ export async function getOverviewStats(): Promise<OverviewStats> {
   return data.data;
 }
 
-export async function getApplicationStats(): Promise<ApplicationStats> {
-  const { data } = await apiClient.get<ApiEnvelope<ApplicationStats>>('/manager/stats/applications');
+export async function getApplicationStats(userId?: string): Promise<ApplicationStats> {
+  const { data } = await apiClient.get<ApiEnvelope<ApplicationStats>>('/manager/stats/applications', {
+    params: { userId: userId || undefined },
+  });
   return data.data;
 }
 
@@ -34,6 +36,11 @@ export async function listManagedUsers(params: ListManagedUsersParams): Promise<
       status: params.status || undefined,
     },
   });
+  return data.data;
+}
+
+export async function getManagedUser(id: string): Promise<ManagerUser> {
+  const { data } = await apiClient.get<ApiEnvelope<ManagerUser>>(`/manager/users/${id}`);
   return data.data;
 }
 

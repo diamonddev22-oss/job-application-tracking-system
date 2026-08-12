@@ -76,6 +76,162 @@ const SUCCESS_TEXT_PATTERNS = [
   /application confirmation/i,
 ];
 
+// --- Known-ATS success profiles ---------------------------------------------------------------
+// The generic, page-wide heuristics above have to guess at wording because they run on *any*
+// site. On the handful of platforms that host a large share of all real-world job applications
+// (Workday, Lever, Greenhouse, ...), we can do much better: each one renders its own confirmation
+// UI with a small, stable set of DOM markers (a specific data-automation-id, a CSS class like
+// "confirmation__content", a data-qa/data-test attribute, ...) that genuinely only appear on that
+// exact confirmation screen. Matching one of those is unambiguous proof of a real submission, on
+// par with the URL-pattern check (SUCCESS_URL_PATTERN) — so, like that check, it's trusted
+// immediately without needing a prior "submit click" to have armed detection (see isSubmitArmed).
+// That sidesteps the Workday-sign-in and Lever-redirect-timing false positive/negative reports
+// entirely for these platforms, rather than trying to tune the generic wording regexes further.
+//
+// These XPath expressions were obtained by inspecting the publicly-installable "Simplify Jobs"
+// Chrome extension (id pbanhockgagggenencehbnadejlgchfc, simplify.jobs) — specifically its
+// remoteConfig.json, which ships a `submittedSuccessPaths` XPath list per ATS as part of its own
+// (much larger) autofill/tracking engine. Copied verbatim for the platforms below since they're
+// already production-tested against the real markup; a couple of that config's broader signals
+// (e.g. "user is on their Workday applications dashboard") were deliberately left out here because
+// they can be true just from checking on old applications, not only right after submitting a new
+// one — the same class of false positive already reported once for this extension.
+interface AtsProfile {
+  name: string;
+  urlPatterns: RegExp[];
+  successXPaths: string[];
+}
+
+// Chrome/Firefox "match pattern"-style globs (only "*" is a wildcard; every other character,
+// including "?", is literal) turned into a RegExp — good enough for the simple domain/path
+// patterns used below without pulling in a full match-pattern parser.
+function globToRegExp(glob: string): RegExp {
+  const escaped = glob.replace(/[.+^${}()|[\]\\?]/g, '\\$&').replace(/\*/g, '.*');
+  return new RegExp(`^${escaped}$`, 'i');
+}
+
+function buildAtsProfile(name: string, urls: string[], successXPaths: string[]): AtsProfile {
+  return { name, urlPatterns: urls.map(globToRegExp), successXPaths };
+}
+
+const ATS_PROFILES: AtsProfile[] = [
+  buildAtsProfile(
+    'Workday',
+    ['*://*.myworkdayjobs.com/*', '*://*.myworkdaysite.com/*'],
+    [
+      './/div[@role="dialog"]//*[local-name()="svg" and contains(@class, "wd-icon-check-circle")]',
+      './/div[@role="dialog"]//h2[starts-with(translate(normalize-space(.), "APPLICATION SUBMITTED", "application submitted"), "application submitted")]',
+      './/*[self::h1 or self::h2 or self::h3 or self::div[@role="alert"]][starts-with(translate(normalize-space(.), "APPLICATION SENT", "application sent"), "application sent")]',
+      './/*[self::h1 or self::h2 or self::h3][starts-with(translate(normalize-space(.), "THANK YOU FOR APPLYING", "thank you for applying"), "thank you for applying")]',
+      './/*[self::h1 or self::h2 or self::h3][starts-with(translate(normalize-space(.), "YOUR APPLICATION HAS BEEN", "your application has been"), "your application has been")]',
+      './/div[@data-automation-id="signInContent"]//div[@data-automation-id="richText" and contains(translate(., "SUCCESSFULLY BEEN SUBMITTED", "successfully been submitted"), "successfully been submitted")]',
+      './/div[@data-automation-id="signInContent"]//div[@data-automation-id="richText" and contains(translate(., "APPLICATION SUBMITTED", "application submitted"), "application submitted")]',
+      './/h2[starts-with(translate(normalize-space(.), "APPLICATION SUBMITTED", "application submitted"), "application submitted")]',
+      './/div[@data-automation-id="candidateHomeTaskModal"]//*[local-name()="svg" and contains(@class, "wd-accent-circle-checkmark")]',
+    ],
+  ),
+  buildAtsProfile(
+    'Lever',
+    ['*://jobs.lever.co/*/*', '*://jobs.eu.lever.co/*/*', '*://*/*?LeverAppId=*'],
+    [
+      './/h3[@data-qa="msg-submit-success" and contains(., "Application")]',
+      './/*[contains(translate(., "APPLICATION RECEIVED", "application received"), "application received") or contains(translate(., "APPLICATION SUBMI", "application submi"), "application submi") or contains(translate(., "THANK YOU FOR SUBMIT", "thank you for submit"), "thank you for submit") or contains(translate(., "THANKS FOR SUBMIT", "thanks for submit"), "thanks for submit")]',
+    ],
+  ),
+  buildAtsProfile(
+    'Greenhouse',
+    [
+      '*://boards.eu.greenhouse.io/*',
+      '*://boards.greenhouse.io/*',
+      '*://job-boards.eu.greenhouse.io/*',
+      '*://job-boards.greenhouse.io/*',
+      '*://*/**gh_jid**',
+    ],
+    [
+      './/div[@class="confirmation"]/div[@class="confirmation__content"]',
+      './/div[@class="confirmation__content"]',
+      './/h2[contains(@class, "rich-text__title") and contains(text(), "We got your application")]',
+      './/div[contains(@class, "ant-result-success") and (contains(translate(., "APPLICATION", "application"), "application") or contains(translate(., "APPLYING", "applying"), "applying"))]//div[contains(@class, "ant-result-title")]',
+      './/div[contains(@class, "ant-result-title") and contains(translate(., "APPLICATION", "application"), "application")]',
+    ],
+  ),
+  buildAtsProfile(
+    'iCIMS',
+    [
+      '*://*.icims.com/jobs/candidate*',
+      '*://*.icims.com/jobs/*/*/candidate*',
+      '*://*.icims.com/jobs/*/*/form*',
+      '*://*.icims.com/forms*',
+      '*://*.jibeapply.com/jobs/candidate*',
+      '*://*.jibeapply.com/forms*',
+    ],
+    ['.//div[contains(@class, "iCIMS_SuccessMessage") and contains(., "Thank")]'],
+  ),
+  buildAtsProfile(
+    'SmartRecruiters',
+    ['*://jobs.smartrecruiters.com/oneclick-ui/company/*', '*://jobs.smartrecruiters.com/*/*'],
+    ['.//h2[@data-test="success-page-confirmation"]'],
+  ),
+  buildAtsProfile(
+    'Taleo',
+    ['*://*.taleo.net/*/application.jss*', '*://*.taleo.net/*/flow.jsf*', '*://*.taleo.net/*/jobapply*'],
+    ['.//div[@class="oracletaleocwsv2-step-title" and contains(translate(., "APPLICATION COMPLETE", "application complete"), "application complete")]'],
+  ),
+  buildAtsProfile(
+    'SuccessFactors',
+    [
+      '*://*.successfactors.com/*',
+      '*://*.successfactors.eu/*',
+      '*://*.sapsf.com/career?*',
+      '*://*.sapsf.com/portalcareer?*',
+      '*://*.sapsf.eu/career?*',
+      '*://*.sapsf.eu/portalcareer?*',
+    ],
+    [
+      './/div[@id="applyConfirmMsg" and contains(translate(., "THANK YOU", "thank you"), "thank you")]',
+      './/div[@id="success_message" and contains(translate(., "THANK YOU", "thank you"), "thank you")]',
+      './/div[not(div) and not(//button[@name="fbclc_createAccountButton"]) and contains(translate(., "SUCCESSFULLY SAVED", "successfully saved"), "successfully saved") and contains(translate(., "JOBS APPLIED", "jobs applied"), "jobs applied")]',
+    ],
+  ),
+  buildAtsProfile(
+    'AshbyHQ',
+    ['*://jobs.ashbyhq.com/*/*/application*'],
+    ['.//div[contains(@class, "application-form-success-container") and contains(translate(., "SUCCESS", "success"), "success")]'],
+  ),
+  buildAtsProfile(
+    'Jobvite',
+    ['*://jobs.jobvite.com/*/job/*', '*://jobs.jobvite.com/*/apply*'],
+    ['.//h2[@class="jv-page-message-header" and contains(., "Application Sent")]'],
+  ),
+  buildAtsProfile(
+    'BambooHR',
+    ['*://*.bamboohr.com/jobs*', '*://*.bamboohr.com/careers*'],
+    ['.//a[@href="/careers"]/button/span[contains(., "See all Job Openings")]'],
+  ),
+];
+
+function findActiveAtsProfile(): AtsProfile | null {
+  const url = window.location.href;
+  return ATS_PROFILES.find((profile) => profile.urlPatterns.some((pattern) => pattern.test(url))) ?? null;
+}
+
+function evaluateXPathBoolean(path: string, contextNode: Node): boolean {
+  try {
+    return document.evaluate(path, contextNode, null, XPathResult.BOOLEAN_TYPE, null).booleanValue;
+  } catch (error) {
+    console.debug(LOG_PREFIX, 'ATS success XPath failed to evaluate:', path.slice(0, 60), error);
+    return false;
+  }
+}
+
+// Checked against the main document and every shadow root seen so far (findExistingShadowRoots is
+// defined later in this file but hoisted, since it's a function declaration) — several of these
+// platforms (Workday chief among them) render parts of their UI inside Shadow DOM.
+function matchesAtsSuccessProfile(profile: AtsProfile): boolean {
+  const contexts: Node[] = [document, ...findExistingShadowRoots(document.documentElement)];
+  return profile.successXPaths.some((path) => contexts.some((context) => evaluateXPathBoolean(path, context)));
+}
+
 // Only worth guessing job details from generic page content (no structured data) when the page
 // looks like a job/careers page at all — otherwise this would misfire on unrelated forms. Checked
 // against the full URL (not just the path) so it also catches things like careers.company.com or
@@ -293,6 +449,11 @@ function textMatchesSuccess(text: string): boolean {
 
 function checkCurrentPage(): void {
   captureJobContext();
+  const atsProfile = findActiveAtsProfile();
+  if (atsProfile && matchesAtsSuccessProfile(atsProfile)) {
+    reportSuccessIfNotAlready(`matched ${atsProfile.name} success indicator`);
+    return;
+  }
   if (looksLikeSuccessByUrl()) {
     reportSuccessIfNotAlready(`URL matched success pattern (${window.location.href})`);
   } else if (textMatchesSuccess(document.title)) {
@@ -359,6 +520,10 @@ function armSubmitDetection(label: string): void {
   sendMessage({ type: 'JATS_SUBMIT_INTENT_DETECTED' });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 // "Apply"/"Apply Now" is ambiguous on its own: on most multi-step ATS flows it just reveals a form
 // to fill out (must NOT arm — that was the original bug), but on some one-click-apply job boards
 // (existing resume/profile on file, no extra info needed) it *is* the entire submission. Text
@@ -366,7 +531,60 @@ function armSubmitDetection(label: string): void {
 // big, still-empty form appeared, it was step 1 of several — don't arm yet, the real "Submit
 // Application" button (below) will arm it properly once the user gets there. Otherwise, treat it
 // as the rarer one-click case and arm anyway.
-const AMBIGUOUS_CLICK_SETTLE_MS = 900;
+//
+// Sampled repeatedly (every AMBIGUOUS_CLICK_POLL_MS, up to AMBIGUOUS_CLICK_MAX_WAIT_MS total)
+// rather than once at a single fixed delay — a *single* snapshot at a short, fixed delay was the
+// original bug here: with several heavy job-listing tabs all loading/rendering at once (real-world
+// report: multiple application pages open simultaneously), the main thread can easily still be busy
+// well past 900ms, so the multi-step form hadn't rendered *yet* at that one sample point — 0 fields
+// found looks identical to "this really was a one-click apply", wrongly arming detection on a page
+// that was simply still loading its form. Polling gives a slow-rendering form many chances to be
+// seen before concluding "no form ever appeared" — a much stronger signal than one lucky/unlucky
+// snapshot. If a success signal (URL or text) is *already* present by the time polling ends, that's
+// even more direct evidence the click really was the whole submission — reported immediately rather
+// than only arming and waiting on a separate layer to notice it.
+const AMBIGUOUS_CLICK_POLL_MS = 350;
+const AMBIGUOUS_CLICK_MAX_WAIT_MS = 2800;
+
+async function resolveAmbiguousApplyClick(label: string): Promise<void> {
+  const shortLabel = label.slice(0, 80) || '(no label)';
+  const deadline = Date.now() + AMBIGUOUS_CLICK_MAX_WAIT_MS;
+
+  while (Date.now() < deadline) {
+    if (alreadyReported) return; // some other detection layer already caught this submission
+
+    // Strongest possible evidence this click alone completed the submission: a success URL/message
+    // (or a known-ATS confirmation marker) is already showing, with no need to wait on a separate
+    // arm-then-detect round trip at all.
+    const atsProfile = findActiveAtsProfile();
+    if (
+      looksLikeSuccessByUrl() ||
+      textMatchesSuccess(document.title) ||
+      textMatchesSuccess(document.body?.textContent ?? '') ||
+      (atsProfile && matchesAtsSuccessProfile(atsProfile))
+    ) {
+      reportSuccessIfNotAlready(`apply-start click ("${shortLabel}") led straight to a success page`);
+      return;
+    }
+
+    if (formLooksFreshlyOpened()) {
+      console.debug(LOG_PREFIX, 'apply-start click revealed a form, not arming:', shortLabel);
+      return;
+    }
+
+    await sleep(AMBIGUOUS_CLICK_POLL_MS);
+  }
+
+  if (alreadyReported) return;
+  console.debug(
+    LOG_PREFIX,
+    'apply-start click never revealed a form within',
+    AMBIGUOUS_CLICK_MAX_WAIT_MS,
+    'ms - treating as a one-click apply:',
+    shortLabel,
+  );
+  armSubmitDetection(label);
+}
 
 function watchForSubmitClicks(): void {
   document.addEventListener(
@@ -394,13 +612,7 @@ function watchForSubmitClicks(): void {
       }
 
       if (isApplyStart) {
-        window.setTimeout(() => {
-          if (formLooksFreshlyOpened()) {
-            console.debug(LOG_PREFIX, 'apply-start click just opened a form, not arming yet:', label.slice(0, 80));
-            return;
-          }
-          armSubmitDetection(label);
-        }, AMBIGUOUS_CLICK_SETTLE_MS);
+        void resolveAmbiguousApplyClick(label);
       }
     },
     { capture: true },
@@ -446,6 +658,12 @@ function onPossibleSuccessMutation(mutations: MutationRecord[]): void {
   if (alreadyReported) return;
   window.clearTimeout(debounceHandle);
   debounceHandle = window.setTimeout(() => {
+    if (alreadyReported) return;
+    const atsProfile = findActiveAtsProfile();
+    if (atsProfile && matchesAtsSuccessProfile(atsProfile)) {
+      reportSuccessIfNotAlready(`matched ${atsProfile.name} success indicator`);
+      return;
+    }
     for (const mutation of mutations) {
       const candidates = mutation.type === 'characterData' ? [mutation.target] : Array.from(mutation.addedNodes);
       for (const node of candidates) {

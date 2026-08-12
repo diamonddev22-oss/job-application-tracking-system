@@ -82,3 +82,10 @@ export async function listAllApplications(
 export async function deleteApplication(id: string): Promise<void> {
   await apiClient.delete(`/manager/applications/${id}`);
 }
+
+export async function updateApplicationStatus(id: string, status: ApplicationStatus): Promise<ManagerApplication> {
+  const { data } = await apiClient.patch<ApiEnvelope<ManagerApplication>>(`/manager/applications/${id}/status`, {
+    status,
+  });
+  return data.data;
+}

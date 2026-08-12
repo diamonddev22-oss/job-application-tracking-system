@@ -5,8 +5,10 @@
 JATS tracks job applications that a user submits **manually** on external platforms (LinkedIn,
 Indeed, company career sites). It is not a job board, crawler, auto-apply bot, or resume
 generator. A Chrome Extension captures the submission event and sends it to the backend; a web
-dashboard lets the applicant review their history; a manager dashboard provides read-only
-analytics across all users.
+dashboard lets the applicant review their history (view-only — applicants can't edit
+status/profile/resume themselves); a manager dashboard provides analytics across all users plus
+the authority to approve/reject accounts, correct an applicant's pipeline status, and hard-delete
+users or individual application records.
 
 ## 2. High-Level Architecture
 
@@ -50,7 +52,7 @@ premature for current load and complexity.
 | `resume` | Resume metadata (file URL, version) — files live in S3-compatible storage, never in Postgres |
 | `tracking` | Application event ingestion, duplicate detection, application CRUD, status history |
 | `notification` | In-app notifications (duplicate warnings, status updates) |
-| `dashboard` | Read-only aggregation APIs for the Manager role |
+| `dashboard` | Aggregation APIs plus account/application moderation (approve/reject, status correction, hard delete) for the Manager role |
 | `common` | Cross-cutting concerns: exception handling, response envelopes, base entities |
 
 Each module follows `Router → Service → ORM model`, with Pydantic schemas at the router boundary.
@@ -58,7 +60,9 @@ SQLAlchemy models are never returned directly from route handlers.
 
 ## 4. Roles & Account Lifecycle
 
-Two roles: `USER` (job applicant) and `MANAGER` (system operator, read-only over user data).
+Two roles: `USER` (job applicant, view-only over their own tracked applications) and `MANAGER`
+(system operator — can approve/reject accounts, correct an applicant's application status, and
+hard-delete users or individual applications).
 
 **Account approval gate:** self-registered accounts start as `PENDING_APPROVAL`. A user in this
 state can log in and manage their profile/resume, but **cannot submit application events** until
@@ -192,6 +196,7 @@ Manager Dashboard (role = MANAGER)
   PATCH  /manager/users/{id}/reject
   DELETE /manager/users/{id}             Hard-deletes the account and all owned data
   GET    /manager/applications           Cross-user application feed (optional ?userId=, ?status=)
+  PATCH  /manager/applications/{id}/status   Manager-driven pipeline stage change (writes application_history)
   DELETE /manager/applications/{id}      Deletes a single tracked application
 ```
 

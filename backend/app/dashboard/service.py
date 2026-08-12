@@ -17,7 +17,7 @@ from app.dashboard.schemas import (
 from app.resumes.models import Resume
 from app.resumes.storage import ResumeStorage
 from app.tracking.enums import ApplicationStatus
-from app.tracking.models import JobApplication
+from app.tracking.models import ApplicationHistory, JobApplication
 from app.tracking.screenshot_storage import ScreenshotStorage
 from app.users.enums import AccountStatus, Role
 from app.users.models import User
@@ -142,6 +142,34 @@ def delete_user(db: Session, user_id: uuid.UUID) -> None:
 
     db.delete(user)
     db.commit()
+
+
+def update_application_status(
+    db: Session, application_id: uuid.UUID, new_status: ApplicationStatus
+) -> ManagerApplicationResponse:
+    """Lets a manager correct/advance an applicant's pipeline stage (e.g. APPLIED -> INTERVIEW)
+    on their behalf - same history-writing behaviour as the applicant's own PATCH
+    /applications/{id}/status, just without the ownership check since the manager isn't the
+    application's owner."""
+    application = (
+        db.query(JobApplication, User)
+        .join(User, JobApplication.user_id == User.id)
+        .filter(JobApplication.id == application_id)
+        .first()
+    )
+    if application is None:
+        raise ResourceNotFoundException("Application not found")
+
+    job_application, user = application
+    old_status = job_application.status
+
+    if old_status != new_status:
+        job_application.status = new_status
+        db.add(ApplicationHistory(application_id=job_application.id, old_status=old_status, new_status=new_status))
+        db.commit()
+        db.refresh(job_application)
+
+    return _to_application_response(job_application, user)
 
 
 def delete_application(db: Session, application_id: uuid.UUID) -> None:

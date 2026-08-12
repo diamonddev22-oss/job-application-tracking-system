@@ -14,6 +14,7 @@ from app.dashboard.schemas import (
     OverviewStatsResponse,
 )
 from app.tracking.enums import ApplicationStatus
+from app.tracking.schemas import UpdateStatusRequest
 from app.users.enums import AccountStatus
 
 # All endpoints here require role = MANAGER, enforced once at the router level.
@@ -73,6 +74,15 @@ def reject(user_id: uuid.UUID, db: Session = Depends(get_db)) -> ApiResponse[Man
 def delete_user(user_id: uuid.UUID, db: Session = Depends(get_db)) -> Response:
     service.delete_user(db, user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/applications/{application_id}/status", response_model=ApiResponse[ManagerApplicationResponse])
+def update_application_status(
+    application_id: uuid.UUID,
+    request: UpdateStatusRequest,
+    db: Session = Depends(get_db),
+) -> ApiResponse[ManagerApplicationResponse]:
+    return ApiResponse.of(service.update_application_status(db, application_id, request.status), "Status updated")
 
 
 @router.delete("/applications/{application_id}", status_code=status.HTTP_204_NO_CONTENT)

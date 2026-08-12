@@ -9,9 +9,11 @@ import {
   listAllApplications,
   listManagedUsers,
   rejectUser,
+  updateApplicationStatus,
   type ListAllApplicationsParams,
   type ListManagedUsersParams,
 } from '../api/manager';
+import type { ApplicationStatus } from '../types';
 
 export function useOverviewStatsQuery() {
   return useQuery({
@@ -83,6 +85,16 @@ export function useDeleteApplicationMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteApplication(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['manager'] });
+    },
+  });
+}
+
+export function useUpdateApplicationStatusMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ApplicationStatus }) => updateApplicationStatus(id, status),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['manager'] });
     },

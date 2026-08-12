@@ -3,8 +3,8 @@ import { getErrorMessage } from '../api/errors';
 import { useDeleteApplicationMutation } from '../hooks/useManager';
 import type { ManagerApplication } from '../types';
 import { formatDate } from '../utils/format';
+import { ApplicationStatusSelect } from './ApplicationStatusSelect';
 import { ScreenshotThumbnail } from './ScreenshotThumbnail';
-import { ApplicationStatusBadge } from './StatusBadge';
 
 interface ManagerApplicationRowProps {
   application: ManagerApplication;
@@ -54,7 +54,7 @@ export function ManagerApplicationRow({ application, showApplicant = true }: Man
         />
       </td>
       <td className="px-4 py-3">
-        <ApplicationStatusBadge status={application.status} />
+        <ApplicationStatusSelect applicationId={application.id} status={application.status} />
       </td>
       <td className="px-4 py-3 text-sm text-slate-500">{formatDate(application.appliedDate)}</td>
       <td className="px-4 py-3">

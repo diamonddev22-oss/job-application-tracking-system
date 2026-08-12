@@ -1,6 +1,6 @@
 import type { AccountStatus, ApplicationStatus } from '../types';
 
-const APPLICATION_STYLES: Record<ApplicationStatus, string> = {
+export const APPLICATION_STATUS_STYLES: Record<ApplicationStatus, string> = {
   APPLIED: 'bg-blue-100 text-blue-700',
   SCREENING: 'bg-indigo-100 text-indigo-700',
   INTERVIEW: 'bg-purple-100 text-purple-700',
@@ -31,7 +31,7 @@ function badgeClasses(style: string) {
 }
 
 export function ApplicationStatusBadge({ status }: { status: ApplicationStatus }) {
-  const style = APPLICATION_STYLES[status];
+  const style = APPLICATION_STATUS_STYLES[status];
   return (
     <span className={badgeClasses(style)}>
       <span className={`h-1.5 w-1.5 rounded-full ${DOT_STYLES[style]}`} />

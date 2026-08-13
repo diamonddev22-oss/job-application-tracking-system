@@ -188,6 +188,37 @@ async function getTab(tabId: number): Promise<chrome.tabs.Tab | undefined> {
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// All three detection layers (webNavigation, webRequest, and content.ts's on-page text/URL checks
+// — see this file's header comment) can each notice a submission *before* the confirmation page
+// has actually finished rendering: webNavigation.onCommitted fires the instant a navigation is
+// committed, well before the response body has even arrived, let alone painted; webRequest.
+// onCompleted fires the moment the underlying network request finishes, but on an SPA the "your
+// application was submitted" UI is often only rendered client-side a beat *after* that response
+// comes back; even the content script's own text-based detection (which does wait for the success
+// message to appear via MutationObserver) can still race images/late-loading styles/exit
+// animations. Capturing a screenshot at any of those moments risks grabbing a blank, half-loaded,
+// or mid-transition page instead of the actual confirmation. Polling for the tab's `status` to
+// become 'complete' — the browser's own "the document and its subresources are done loading"
+// signal — handles the navigation case; the fixed buffer afterward handles the SPA
+// render-after-response case, which `status` alone can't see at all.
+const TAB_LOAD_POLL_MS = 200;
+const TAB_LOAD_MAX_WAIT_MS = 6_000;
+const POST_LOAD_SETTLE_MS = 900;
+
+async function waitForTabToSettle(tabId: number): Promise<void> {
+  const deadline = Date.now() + TAB_LOAD_MAX_WAIT_MS;
+  while (Date.now() < deadline) {
+    const tab = await getTab(tabId);
+    if (!tab || tab.status === 'complete') break; // tab gone or genuinely done loading either way
+    await sleep(TAB_LOAD_POLL_MS);
+  }
+  await sleep(POST_LOAD_SETTLE_MS);
+}
+
 /** chrome.tabs.captureVisibleTab returns a base64 data: URL. Decoded by hand with atob() rather
  * than `fetch(dataUrl).then(r => r.blob())`, which also works in a service worker but adds an
  * avoidable dependency on the fetch spec's data: URL handling being intact in every Chrome build
@@ -240,10 +271,23 @@ async function captureAndUploadScreenshot(
     return { status: 'skipped', detail };
   }
 
-  await onStage?.('Capturing screenshot…', 2);
+  await onStage?.('Waiting for the confirmation page to finish loading…', 2);
+  await waitForTabToSettle(tabId);
+
+  // Re-check after waiting - the tab may have navigated away, closed, or lost focus during that
+  // window (waitForTabToSettle can take up to ~7s), which the check above (taken before waiting)
+  // wouldn't have caught.
+  const settledTab = await getTab(tabId);
+  if (!settledTab?.windowId || settledTab.active !== true) {
+    const detail = 'tab was no longer the active tab in its window after waiting for the page to settle';
+    console.debug('[JATS] skipping screenshot for tab', tabId, '-', detail);
+    return { status: 'skipped', detail };
+  }
+
+  await onStage?.('Capturing screenshot…', 3);
   let dataUrl: string;
   try {
-    dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+    dataUrl = await chrome.tabs.captureVisibleTab(settledTab.windowId, { format: 'png' });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.warn('[JATS] chrome.tabs.captureVisibleTab failed for tab', tabId, '-', detail);
@@ -260,7 +304,7 @@ async function captureAndUploadScreenshot(
   }
   console.debug('[JATS] captured screenshot for tab', tabId, '-', blob.size, 'bytes');
 
-  await onStage?.('Uploading screenshot…', 3);
+  await onStage?.('Uploading screenshot…', 4);
   try {
     const upload = await createScreenshotUploadUrl('image/png');
     const putResponse = await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'image/png' }, body: blob });
@@ -270,7 +314,7 @@ async function captureAndUploadScreenshot(
       return { status: 'failed', detail };
     }
     console.debug('[JATS] screenshot uploaded successfully:', upload.key);
-    await onStage?.('Screenshot uploaded — finishing up…', 4);
+    await onStage?.('Screenshot uploaded — finishing up…', 5);
     return { status: 'attached', key: upload.key };
   } catch (error) {
     // Most common real-world cause: the backend/S3 storage is unreachable (e.g. MinIO isn't
@@ -336,13 +380,14 @@ async function reportApplicationSubmission(
   const subjectLine = `${jobTitle || 'Job application'} at ${company || 'this company'}`;
 
   // Drives the blocking status dialog rendered directly on the job application page itself (and
-  // mirrored into the side panel, if it happens to be open) through each stage - "detected ->
-  // capturing/uploading screenshot -> sending to server -> tracked" - so the user can tell at a
-  // glance it's still working, and can't interact with the page/panel again until it resolves.
+  // mirrored into the side panel, if it happens to be open) through each stage - "detected -> wait
+  // for the confirmation page to finish loading -> capturing/uploading screenshot -> sending to
+  // server -> tracked" - so the user can tell at a glance it's still working, and can't interact
+  // with the page/panel again until it resolves.
   // Always awaited by every caller below - see the comment on captureAndUploadScreenshot's onStage
   // parameter for why an un-awaited version of this could let stages clobber each other out of
   // order.
-  const TOTAL_STEPS = 5; // detected, capturing, uploading, finishing, sending — see the step numbers passed below
+  const TOTAL_STEPS = 6; // detected, waiting for page, capturing, uploading, finishing, sending — see the step numbers passed below
   const progress = (message: string, step: number) =>
     setTrackingStatus(tabId, { phase: 'active', message, step, totalSteps: TOTAL_STEPS });
 
@@ -351,7 +396,7 @@ async function reportApplicationSubmission(
   const screenshot = await captureAndUploadScreenshot(tabId, progress);
   const screenshotKey = screenshot.status === 'attached' ? screenshot.key : undefined;
 
-  await progress('Sending application details to server…', 5);
+  await progress('Sending application details to server…', 6);
 
   try {
     const response = await submitApplicationEvent({

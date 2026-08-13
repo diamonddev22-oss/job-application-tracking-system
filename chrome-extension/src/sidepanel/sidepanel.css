@@ -131,8 +131,15 @@ button:disabled {
   color: #991b1b;
 }
 
+/* !important is deliberate: this is a generic "force-hidden" utility applied to several elements
+   (notices, the resume section, this file's own .tracking-dialog, ...) that each also carry their
+   own non-`none` `display` rule (flex/block/etc.) for when they're shown. Without !important,
+   plain CSS cascade/source-order would let whichever of those rules happens to be declared *later*
+   in the file win over `.hidden` even while the "hidden" class is still applied - which is exactly
+   the bug that made the tracking dialog (declared after this rule) permanently visible regardless
+   of its actual open/closed state. */
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 .activity-section {

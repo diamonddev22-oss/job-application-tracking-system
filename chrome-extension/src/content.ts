@@ -747,6 +747,32 @@ interface TrackingDialogElements {
 let trackingDialog: TrackingDialogElements | null = null;
 let trackingDialogHideTimeout: number | undefined;
 
+// Safety net, independent of anything background.ts does: no real detect -> capture -> upload ->
+// send sequence should ever legitimately take this long, so if no follow-up status arrives within
+// this window of the last one, assume the background service worker died or an unhandled error
+// silently swallowed the rest of the flow, and force the overlay closed rather than leave the page
+// permanently blocked. Re-armed on every 'active' update (sliding window), so a slow but
+// still-progressing submission is never cut off mid-flight. 30s mirrors sidepanel.ts's own
+// watchdog/staleness window (TRACKING_STALE_AFTER_MS) — kept as a literal here rather than
+// imported since this file can't use runtime imports at all (see the file's top-of-file comment).
+const TRACKING_WATCHDOG_MS = 30_000;
+let trackingWatchdogTimeout: number | undefined;
+
+function disarmTrackingWatchdog(): void {
+  if (trackingWatchdogTimeout !== undefined) {
+    window.clearTimeout(trackingWatchdogTimeout);
+    trackingWatchdogTimeout = undefined;
+  }
+}
+
+function armTrackingWatchdog(): void {
+  disarmTrackingWatchdog();
+  trackingWatchdogTimeout = window.setTimeout(() => {
+    console.warn(LOG_PREFIX, 'tracking status watchdog fired — no update in', TRACKING_WATCHDOG_MS, 'ms; closing the overlay');
+    renderTrackingStatusOnPage(null);
+  }, TRACKING_WATCHDOG_MS);
+}
+
 function createTrackingDialog(): TrackingDialogElements {
   const host = document.createElement('div');
   host.id = TRACKING_DIALOG_HOST_ID;
@@ -846,6 +872,7 @@ function renderTrackingStatusOnPage(status: TrackingStatus | null): void {
   }
 
   if (!status) {
+    disarmTrackingWatchdog();
     trackingDialog?.host.remove();
     trackingDialog = null;
     return;
@@ -862,11 +889,13 @@ function renderTrackingStatusOnPage(status: TrackingStatus | null): void {
   message.textContent = status.message;
 
   if (status.phase === 'active') {
+    armTrackingWatchdog();
     box.classList.remove('done');
     step.textContent = `Step ${status.step} of ${status.totalSteps}`;
     return;
   }
 
+  disarmTrackingWatchdog();
   box.classList.add('done');
   icon.textContent = TRACKING_OUTCOME_ICON[status.outcome];
   step.textContent = '';

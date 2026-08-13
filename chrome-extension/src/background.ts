@@ -33,6 +33,7 @@ import type {
   ApplicationSubmitDetectedMessage,
   ContentScriptMessage,
   JobContextDetectedMessage,
+  PersistedTrackingStatus,
   StoredJobContext,
   SubmitArmedResponse,
   TrackingStatus,
@@ -149,7 +150,8 @@ const TRACKING_DONE_STORAGE_TTL_MS = 4_000;
  * live message it might have missed while closed - the content-script side doesn't need this
  * since it's only ever relevant to the one tab that's actively mid-submission right now. */
 async function setTrackingStatus(tabId: number, status: TrackingStatus): Promise<void> {
-  await chrome.storage.session.set({ [TRACKING_STATUS_STORAGE_KEY]: status });
+  const persisted: PersistedTrackingStatus = { status, updatedAt: Date.now() };
+  await chrome.storage.session.set({ [TRACKING_STATUS_STORAGE_KEY]: persisted });
   // Two distinct message types on purpose — see TrackingStatusMessage's doc comment in
   // types/index.ts for why the side panel's broadcast and the page-targeted send can't share one.
   chrome.runtime.sendMessage({ type: 'JATS_TRACKING_STATUS', status }).catch(() => undefined);

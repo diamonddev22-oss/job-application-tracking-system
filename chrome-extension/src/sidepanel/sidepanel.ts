@@ -11,11 +11,12 @@ import type {
   ActivityUpdatedMessage,
   ApplicationEventResponse,
   JobApplication,
+  PersistedTrackingStatus,
   StoredConfig,
   TrackingStatus,
   TrackingStatusMessage,
 } from '../types';
-import { TRACKING_STATUS_STORAGE_KEY } from '../types';
+import { TRACKING_STALE_AFTER_MS, TRACKING_STATUS_STORAGE_KEY } from '../types';
 
 const form = document.getElementById('applicationForm') as HTMLFormElement;
 const companyInput = document.getElementById('company') as HTMLInputElement;
@@ -67,6 +68,32 @@ function applyAccountState(config: StoredConfig, accountStatus: AccountStatus | 
 const TRACKING_DONE_DIALOG_HIDE_MS = 2_200;
 let trackingDoneTimeout: ReturnType<typeof setTimeout> | undefined;
 
+// Safety net, independent of anything background.ts does: no real detect -> capture -> upload ->
+// send sequence should ever legitimately take this long, so if no follow-up status arrives within
+// this window of the last one, assume the background service worker died or an unhandled error
+// silently swallowed the rest of the flow, and force the dialog closed rather than leave the user
+// permanently locked out of the panel. Re-armed on every 'active' update (sliding window), so a
+// slow but still-progressing submission is never cut off mid-flight. Shares TRACKING_STALE_AFTER_MS
+// with loadTrackingStatus's own staleness check below — same reasoning, just applied to a status
+// that's already showing live rather than one being freshly read from storage.
+let trackingWatchdogTimeout: ReturnType<typeof setTimeout> | undefined;
+
+function disarmTrackingWatchdog(): void {
+  if (trackingWatchdogTimeout !== undefined) {
+    clearTimeout(trackingWatchdogTimeout);
+    trackingWatchdogTimeout = undefined;
+  }
+}
+
+function armTrackingWatchdog(): void {
+  disarmTrackingWatchdog();
+  trackingWatchdogTimeout = setTimeout(() => {
+    console.warn('[JATS] tracking status watchdog fired — no update in', TRACKING_STALE_AFTER_MS, 'ms; closing the dialog');
+    renderTrackingStatus(null);
+    chrome.storage.session.remove(TRACKING_STATUS_STORAGE_KEY).catch(() => undefined);
+  }, TRACKING_STALE_AFTER_MS);
+}
+
 const TRACKING_OUTCOME_ICON: Record<Extract<TrackingStatus, { phase: 'done' }>['outcome'], string> = {
   success: '✅',
   duplicate: 'ℹ️',
@@ -85,6 +112,7 @@ function renderTrackingStatus(status: TrackingStatus | null): void {
   }
 
   if (!status) {
+    disarmTrackingWatchdog();
     trackingDialog.classList.add('hidden');
     return;
   }
@@ -93,11 +121,13 @@ function renderTrackingStatus(status: TrackingStatus | null): void {
   trackingDialogMessage.textContent = status.message;
 
   if (status.phase === 'active') {
+    armTrackingWatchdog();
     trackingDialog.classList.remove('tracking-dialog-done');
     trackingDialogStep.textContent = `Step ${status.step} of ${status.totalSteps}`;
     return;
   }
 
+  disarmTrackingWatchdog();
   trackingDialog.classList.add('tracking-dialog-done');
   trackingIcon.textContent = TRACKING_OUTCOME_ICON[status.outcome];
   trackingDialogStep.textContent = '';
@@ -107,11 +137,22 @@ function renderTrackingStatus(status: TrackingStatus | null): void {
 /** Reads whatever background.ts last persisted (see TRACKING_STATUS_STORAGE_KEY) so opening the
  * panel mid-submission - or right after one just finished - shows the dialog immediately instead
  * of only reacting to a live JATS_TRACKING_STATUS message that may have been sent while the panel
- * was closed. */
+ * was closed. Discards anything older than TRACKING_STALE_AFTER_MS rather than rendering it: a
+ * genuinely-abandoned entry (e.g. the service worker died mid-submission before ever reaching a
+ * terminal state, so the usual TRACKING_DONE_STORAGE_TTL_MS cleanup never got to run) would
+ * otherwise resurface and permanently lock the panel the next time it's opened, however long after
+ * the fact that is - the live watchdog above only guards a status that's already showing, not one
+ * that's stale before it's even been read for the first time. */
 async function loadTrackingStatus(): Promise<void> {
   const result = await chrome.storage.session.get(TRACKING_STATUS_STORAGE_KEY);
-  const status = result[TRACKING_STATUS_STORAGE_KEY] as TrackingStatus | undefined;
-  renderTrackingStatus(status ?? null);
+  const persisted = result[TRACKING_STATUS_STORAGE_KEY] as PersistedTrackingStatus | undefined;
+  if (persisted && Date.now() - persisted.updatedAt > TRACKING_STALE_AFTER_MS) {
+    console.warn('[JATS] discarding stale persisted tracking status from', new Date(persisted.updatedAt).toISOString());
+    await chrome.storage.session.remove(TRACKING_STATUS_STORAGE_KEY);
+    renderTrackingStatus(null);
+    return;
+  }
+  renderTrackingStatus(persisted?.status ?? null);
 }
 
 /** Applicants only ever have a resume once a manager has approved them (uploading one is a

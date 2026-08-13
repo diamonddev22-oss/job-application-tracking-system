@@ -209,8 +209,26 @@ export interface TrackingStatusPageMessage {
   status: TrackingStatus;
 }
 
-/** chrome.storage.session key background.ts persists the current TrackingStatus under, so a side
- * panel opened mid-submission (or reopened just after one finishes) can immediately show the
- * blocking dialog in the right state instead of only reacting to a live message it may have missed
- * while closed. Cleared a few seconds after a submission finishes — see background.ts. */
+/** What's actually persisted under TRACKING_STATUS_STORAGE_KEY — the status plus when it was set.
+ * The timestamp lets a reader (sidepanel.ts's loadTrackingStatus) tell a genuinely-current status
+ * apart from one that's stuck because the MV3 service worker was suspended/killed mid-submission
+ * before it ever reached a terminal state (setTimeout-based cleanup doesn't survive that — chrome.
+ * storage.session itself does, so without this check a months-old 'active' status could otherwise
+ * resurface and permanently block the panel the next time it's opened). See TRACKING_STALE_AFTER_MS. */
+export interface PersistedTrackingStatus {
+  status: TrackingStatus;
+  updatedAt: number;
+}
+
+/** How old a persisted TrackingStatus can be before it's treated as abandoned rather than current
+ * — comfortably longer than any real detect -> capture -> upload -> send sequence should ever
+ * take, so this only ever kicks in for a genuinely stuck/orphaned entry. Shared with the
+ * equivalent live-update watchdog in sidepanel.ts (same reasoning, just for a status that's
+ * already showing rather than one being freshly loaded). */
+export const TRACKING_STALE_AFTER_MS = 30_000;
+
+/** chrome.storage.session key background.ts persists the current PersistedTrackingStatus under, so
+ * a side panel opened mid-submission (or reopened just after one finishes) can immediately show
+ * the blocking dialog in the right state instead of only reacting to a live message it may have
+ * missed while closed. Cleared a few seconds after a submission finishes — see background.ts. */
 export const TRACKING_STATUS_STORAGE_KEY = 'jats.trackingStatus';

@@ -15,7 +15,9 @@ export function LoginPage() {
     mutationFn: () => loginRequest(email, password),
     onSuccess: (auth) => {
       login(auth);
-      navigate('/applications', { replace: true });
+      // Managers review applicants, not their own tracked applications — that page (and its nav
+      // link, see Layout) is USER-only, so route them straight to the dashboard instead.
+      navigate(auth.role === 'MANAGER' ? '/manager' : '/applications', { replace: true });
     },
   });
 

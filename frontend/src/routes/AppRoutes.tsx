@@ -19,7 +19,7 @@ export function AppRoutes() {
         <Route path="register" element={<RegisterPage />} />
         <Route path="extension" element={<ExtensionPage />} />
 
-        <Route element={<ProtectedRoute />}>
+        <Route element={<ProtectedRoute allowedRoles={['USER']} />}>
           <Route path="applications" element={<ApplicationsPage />} />
         </Route>
 

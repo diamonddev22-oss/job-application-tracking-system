@@ -52,7 +52,9 @@ export function Layout() {
             <NavItem to="/extension">Get the extension</NavItem>
             {isAuthenticated ? (
               <>
-                <NavItem to="/applications">Applications</NavItem>
+                {/* Application history is USER-only — a manager reviews applicants via the
+                    dashboard instead, they don't track applications of their own. */}
+                {user?.role !== 'MANAGER' && <NavItem to="/applications">Applications</NavItem>}
                 {user?.role === 'MANAGER' && <NavItem to="/manager">Manager Dashboard</NavItem>}
                 <span className="mx-1 hidden h-6 w-px bg-slate-200 sm:block" />
                 <span className="hidden max-w-[10rem] truncate text-sm text-slate-500 sm:inline" title={user?.email}>

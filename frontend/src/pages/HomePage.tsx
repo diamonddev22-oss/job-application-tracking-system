@@ -51,15 +51,23 @@ export function HomePage() {
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-slate-600">
           {isAuthenticated
-            ? `Welcome back${user ? `, ${user.email}` : ''}. Here's where your application history lives.`
+            ? user?.role === 'MANAGER'
+              ? `Welcome back${user ? `, ${user.email}` : ''}. Review applicants and their tracked applications from the dashboard.`
+              : `Welcome back${user ? `, ${user.email}` : ''}. Here's where your application history lives.`
             : 'Log in or register to start tracking your job applications — no spreadsheets required.'}
         </p>
 
         {isAuthenticated ? (
           <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Link to="/applications" className="btn-primary">
-              View applications
-            </Link>
+            {user?.role === 'MANAGER' ? (
+              <Link to="/manager" className="btn-primary">
+                Go to manager dashboard
+              </Link>
+            ) : (
+              <Link to="/applications" className="btn-primary">
+                View applications
+              </Link>
+            )}
             <Link to="/extension" className="btn-secondary">
               Get the Chrome extension
             </Link>

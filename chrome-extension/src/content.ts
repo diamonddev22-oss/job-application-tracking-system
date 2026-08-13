@@ -36,6 +36,8 @@ import type {
   JobContextDetectedMessage,
   SubmitArmedResponse,
   SubmitIntentDetectedMessage,
+  TrackingStatus,
+  TrackingStatusPageMessage,
 } from './types';
 
 const LOG_PREFIX = '[JATS]';
@@ -715,8 +717,174 @@ Element.prototype.attachShadow = function patchedAttachShadow(this: Element, ini
 // still sees <body> itself get added, plus everything after — so this can also run immediately.
 observeSuccessText(document);
 
+// --- On-page tracking status dialog --------------------------------------------------------------
+// While an auto-tracked submission is in flight (detect -> capture screenshot -> upload -> send to
+// server), background.ts drives a blocking status dialog rendered right here, directly on the job
+// application page — not just in the extension's side panel — since that's where the user actually
+// is at the moment they submit, and the side panel may not even be open. Rendered inside a closed
+// Shadow DOM host so neither the host page's CSS can distort the dialog nor the dialog's own styles
+// leak onto the page. Only the top-level frame renders this: `all_frames: true` means every iframe
+// on the page runs this same script too, but background.ts already targets only frameId 0 when
+// sending TrackingStatusPageMessage, so `window.top === window.self` below is just a second line of
+// defense, not the only thing preventing duplicate dialogs in framed pages.
+const TRACKING_DIALOG_HOST_ID = 'jats-tracking-dialog-host';
+const TRACKING_DONE_HIDE_MS = 2_200;
+
+const TRACKING_OUTCOME_ICON: Record<Extract<TrackingStatus, { phase: 'done' }>['outcome'], string> = {
+  success: '✅',
+  duplicate: 'ℹ️',
+  error: '⚠️',
+};
+
+interface TrackingDialogElements {
+  host: HTMLDivElement;
+  box: HTMLDivElement;
+  message: HTMLParagraphElement;
+  step: HTMLParagraphElement;
+  icon: HTMLDivElement;
+}
+
+let trackingDialog: TrackingDialogElements | null = null;
+let trackingDialogHideTimeout: number | undefined;
+
+function createTrackingDialog(): TrackingDialogElements {
+  const host = document.createElement('div');
+  host.id = TRACKING_DIALOG_HOST_ID;
+  // Isolate from *any* page CSS (e.g. a page-wide "div { display: none !important }" reset) —
+  // only the shadow root's own <style> below is allowed to control how this looks.
+  host.style.all = 'initial';
+  host.style.position = 'fixed';
+  host.style.zIndex = '2147483647'; // max valid z-index — always renders above the page's own UI
+
+  const shadow = host.attachShadow({ mode: 'closed' });
+  const style = document.createElement('style');
+  style.textContent = `
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(15, 23, 42, 0.55);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      max-width: 320px;
+      padding: 28px 32px;
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
+      text-align: center;
+    }
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #dbeafe;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: jats-tracking-dialog-spin 0.8s linear infinite;
+    }
+    @keyframes jats-tracking-dialog-spin {
+      to { transform: rotate(360deg); }
+    }
+    .icon {
+      display: none;
+      font-size: 30px;
+      line-height: 1;
+    }
+    .box.done .spinner { display: none; }
+    .box.done .icon { display: block; }
+    .message {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .step {
+      margin: 0;
+      font-size: 12px;
+      color: #64748b;
+    }
+  `;
+  shadow.appendChild(style);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  // Swallow every interaction with the underlying page while this is up (capture phase, so it
+  // can't be beaten by a page-registered listener on the same element).
+  for (const type of ['click', 'mousedown', 'keydown', 'submit']) {
+    overlay.addEventListener(type, (event) => event.stopPropagation(), { capture: true });
+  }
+
+  const box = document.createElement('div');
+  box.className = 'box';
+  const spinner = document.createElement('div');
+  spinner.className = 'spinner';
+  const icon = document.createElement('div');
+  icon.className = 'icon';
+  const message = document.createElement('p');
+  message.className = 'message';
+  const step = document.createElement('p');
+  step.className = 'step';
+
+  box.append(spinner, icon, message, step);
+  overlay.appendChild(box);
+  shadow.appendChild(overlay);
+
+  return { host, box, message, step, icon };
+}
+
+function renderTrackingStatusOnPage(status: TrackingStatus | null): void {
+  if (trackingDialogHideTimeout !== undefined) {
+    window.clearTimeout(trackingDialogHideTimeout);
+    trackingDialogHideTimeout = undefined;
+  }
+
+  if (!status) {
+    trackingDialog?.host.remove();
+    trackingDialog = null;
+    return;
+  }
+
+  if (!trackingDialog) {
+    trackingDialog = createTrackingDialog();
+  }
+  const { host, box, message, step, icon } = trackingDialog;
+  if (!host.isConnected) {
+    (document.body ?? document.documentElement).appendChild(host);
+  }
+
+  message.textContent = status.message;
+
+  if (status.phase === 'active') {
+    box.classList.remove('done');
+    step.textContent = `Step ${status.step} of ${status.totalSteps}`;
+    return;
+  }
+
+  box.classList.add('done');
+  icon.textContent = TRACKING_OUTCOME_ICON[status.outcome];
+  step.textContent = '';
+  trackingDialogHideTimeout = window.setTimeout(() => renderTrackingStatusOnPage(null), TRACKING_DONE_HIDE_MS);
+}
+
+function initTrackingStatusDialog(): void {
+  if (window.top !== window.self) return; // only the top-level frame ever shows this
+  chrome.runtime.onMessage.addListener((message: TrackingStatusPageMessage) => {
+    if (message.type === 'JATS_TRACKING_STATUS_PAGE') {
+      renderTrackingStatusOnPage(message.status);
+    }
+  });
+}
+
 function start(): void {
   console.debug(LOG_PREFIX, 'content script active on', window.location.href);
+  initTrackingStatusDialog();
   watchForSpaNavigation();
   watchForSubmitClicks();
   // Covers any shadow roots that were attached before this script got a chance to run (the patch

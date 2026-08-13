@@ -171,20 +171,41 @@ export interface ActivityUpdatedMessage {
 }
 
 /** A single auto-tracked submission's lifecycle, from the moment a submission is detected through
- * to its outcome — mirrors the stages already shown in the OS notification (see background.ts's
- * upsertNotification), just also surfaced as a blocking dialog inside the side panel itself (see
- * sidepanel.ts) so the user can't interact with the panel while a submission is still in flight
- * (e.g. accidentally re-submitting the manual form mid-upload). */
+ * to its outcome. Surfaced as a blocking dialog in two places at once (see setTrackingStatus in
+ * background.ts): directly on the job application page itself, via content.ts — the primary UX,
+ * since that's where the user actually is when they submit — and, as a bonus if it happens to be
+ * open already, inside the side panel (see sidepanel.ts). Either way the point is the same: the
+ * user can't interact with the page/panel again (e.g. accidentally re-submitting the manual form,
+ * or navigating away mid-upload) until the sequence resolves. */
 export type TrackingStatus =
   | { phase: 'active'; message: string; step: number; totalSteps: number }
   | { phase: 'done'; outcome: 'success' | 'duplicate' | 'error'; message: string };
 
-/** Broadcast by background.ts on every stage change (see setTrackingStatus). Best-effort, like
- * ActivityUpdatedMessage — silently dropped if no side panel is open to receive it, which is fine
- * because a freshly-opened panel also reads the persisted copy directly (see
- * TRACKING_STATUS_STORAGE_KEY) instead of relying solely on having caught a live message. */
+/** Broadcast by background.ts on every stage change (see setTrackingStatus) via
+ * chrome.runtime.sendMessage, for the side panel (sidepanel.ts). Best-effort — silently dropped if
+ * no side panel is open, which is fine because a freshly-opened one also reads the persisted copy
+ * directly (see TRACKING_STATUS_STORAGE_KEY) instead of relying solely on having caught a live
+ * message.
+ *
+ * Deliberately a *different* message type from TrackingStatusPageMessage below rather than one
+ * shared type distinguished some other way: chrome.runtime.sendMessage broadcasts reach every
+ * listening context with no target restriction, including every content script in every open tab
+ * (content.ts *does* register a chrome.runtime.onMessage listener, for the page-targeted message
+ * below) — so if both used the same message type, every tab would render the on-page dialog for
+ * every other tab's submission. Keeping them distinct means content.ts's listener simply never
+ * matches this one, no matter how it's delivered under the hood. */
 export interface TrackingStatusMessage {
   type: 'JATS_TRACKING_STATUS';
+  status: TrackingStatus;
+}
+
+/** Sent by background.ts on every stage change (see setTrackingStatus), targeted at only the
+ * top-level frame (frameId: 0) of the specific tab the submission is happening in via
+ * chrome.tabs.sendMessage — this is what content.ts listens for to render the blocking dialog
+ * directly on the job application page itself. See TrackingStatusMessage above for why this isn't
+ * just reused for the side panel's broadcast too. */
+export interface TrackingStatusPageMessage {
+  type: 'JATS_TRACKING_STATUS_PAGE';
   status: TrackingStatus;
 }
 

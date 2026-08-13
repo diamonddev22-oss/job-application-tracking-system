@@ -169,3 +169,27 @@ export type ContentScriptMessage =
 export interface ActivityUpdatedMessage {
   type: 'JATS_ACTIVITY_UPDATED';
 }
+
+/** A single auto-tracked submission's lifecycle, from the moment a submission is detected through
+ * to its outcome — mirrors the stages already shown in the OS notification (see background.ts's
+ * upsertNotification), just also surfaced as a blocking dialog inside the side panel itself (see
+ * sidepanel.ts) so the user can't interact with the panel while a submission is still in flight
+ * (e.g. accidentally re-submitting the manual form mid-upload). */
+export type TrackingStatus =
+  | { phase: 'active'; message: string; step: number; totalSteps: number }
+  | { phase: 'done'; outcome: 'success' | 'duplicate' | 'error'; message: string };
+
+/** Broadcast by background.ts on every stage change (see setTrackingStatus). Best-effort, like
+ * ActivityUpdatedMessage — silently dropped if no side panel is open to receive it, which is fine
+ * because a freshly-opened panel also reads the persisted copy directly (see
+ * TRACKING_STATUS_STORAGE_KEY) instead of relying solely on having caught a live message. */
+export interface TrackingStatusMessage {
+  type: 'JATS_TRACKING_STATUS';
+  status: TrackingStatus;
+}
+
+/** chrome.storage.session key background.ts persists the current TrackingStatus under, so a side
+ * panel opened mid-submission (or reopened just after one finishes) can immediately show the
+ * blocking dialog in the right state instead of only reacting to a live message it may have missed
+ * while closed. Cleared a few seconds after a submission finishes — see background.ts. */
+export const TRACKING_STATUS_STORAGE_KEY = 'jats.trackingStatus';

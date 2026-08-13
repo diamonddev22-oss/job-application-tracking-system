@@ -35,7 +35,9 @@ import type {
   JobContextDetectedMessage,
   StoredJobContext,
   SubmitArmedResponse,
+  TrackingStatus,
 } from './types';
+import { TRACKING_STATUS_STORAGE_KEY } from './types';
 
 // So chrome.webRequest doesn't mistake this extension's own POST to /application-events — which
 // legitimately has "application" in its URL — for a page's job application submission.
@@ -127,6 +129,27 @@ async function markReported(tabId: number, jobUrl: string): Promise<void> {
  * receive this") are expected and harmless — the whole point is this is best-effort. */
 function notifyActivityUpdated(): void {
   chrome.runtime.sendMessage({ type: 'JATS_ACTIVITY_UPDATED' }).catch(() => undefined);
+}
+
+// How long a terminal ('done') TrackingStatus stays in storage after being reached — long enough
+// that a side panel opened right as a submission finishes still briefly shows the outcome (success/
+// duplicate/error) instead of nothing, short enough that reopening the panel a while later never
+// shows a stale result from a long-past submission.
+const TRACKING_DONE_STORAGE_TTL_MS = 4_000;
+
+/** Persists the current TrackingStatus (so a side panel opened mid-submission can read it
+ * straight away — see TRACKING_STATUS_STORAGE_KEY) and pushes it live to any panel that's already
+ * open. Best-effort/fire-and-forget on the message side, same as notifyActivityUpdated. */
+async function setTrackingStatus(status: TrackingStatus): Promise<void> {
+  await chrome.storage.session.set({ [TRACKING_STATUS_STORAGE_KEY]: status });
+  chrome.runtime.sendMessage({ type: 'JATS_TRACKING_STATUS', status }).catch(() => undefined);
+}
+
+async function finishTrackingStatus(status: Extract<TrackingStatus, { phase: 'done' }>): Promise<void> {
+  await setTrackingStatus(status);
+  setTimeout(() => {
+    chrome.storage.session.remove(TRACKING_STATUS_STORAGE_KEY).catch(() => undefined);
+  }, TRACKING_DONE_STORAGE_TTL_MS);
 }
 
 /** In-progress stage of a single tracking notification vs. its terminal state.
@@ -380,8 +403,13 @@ async function reportApplicationSubmission(
   // parameter for why an un-awaited version of this previously let stages clobber each other out of
   // order.
   const TOTAL_STEPS = 5; // detected, capturing, uploading, finishing, sending — see the step numbers passed below
-  const progress = (message: string, step: number) =>
-    upsertNotification(notificationId, 'Tracking application…', message, { kind: 'progress', step, totalSteps: TOTAL_STEPS });
+  const progress = async (message: string, step: number) => {
+    await upsertNotification(notificationId, 'Tracking application…', message, { kind: 'progress', step, totalSteps: TOTAL_STEPS });
+    // Mirrors the same stage into the side panel's blocking dialog (see sidepanel.ts) — the user
+    // shouldn't be able to interact with the panel (e.g. submit the manual form) while this
+    // multi-second detect -> capture -> upload -> send sequence is still in flight.
+    await setTrackingStatus({ phase: 'active', message, step, totalSteps: TOTAL_STEPS });
+  };
 
   await progress(`Detected — ${subjectLine}`, 1);
 
@@ -408,23 +436,27 @@ async function reportApplicationSubmission(
       // record only needs to exist there, and any open side panel just needs a poke to go re-fetch
       // it. Silently ignored if nothing's listening (no side panel open right now).
       notifyActivityUpdated();
-      await upsertNotification(
-        notificationId,
+      const doneMessage =
         screenshot.status === 'attached'
           ? 'Application tracked automatically (with screenshot)'
-          : 'Application tracked automatically (no screenshot)',
-        subjectLine,
-        { kind: 'done' },
-      );
-    } else {
-      // DUPLICATE / ERROR: stay quiet rather than showing a toast for a page the user already
-      // tracked - clear the in-progress notification instead of leaving it stuck mid-way.
+          : 'Application tracked automatically (no screenshot)';
+      await upsertNotification(notificationId, doneMessage, subjectLine, { kind: 'done' });
+      await finishTrackingStatus({ phase: 'done', outcome: 'success', message: doneMessage });
+    } else if (response.status === 'DUPLICATE') {
+      // Stay quiet on the OS notification (no toast for a page the user already tracked), but the
+      // in-panel dialog still needs a terminal state to close out on rather than being left stuck
+      // mid-progress.
       chrome.notifications.clear(notificationId).catch(() => undefined);
+      await finishTrackingStatus({ phase: 'done', outcome: 'duplicate', message: 'Already tracked — no duplicate created' });
+    } else {
+      chrome.notifications.clear(notificationId).catch(() => undefined);
+      await finishTrackingStatus({ phase: 'done', outcome: 'error', message: response.message || 'Failed to track application' });
     }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.warn('[JATS] failed to auto-track application', error);
     await upsertNotification(notificationId, 'Failed to track application', `${subjectLine} — ${detail}`, { kind: 'done' });
+    await finishTrackingStatus({ phase: 'done', outcome: 'error', message: `Failed to track application — ${detail}` });
   }
 }
 

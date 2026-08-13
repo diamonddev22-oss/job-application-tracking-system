@@ -6,7 +6,16 @@ import {
   saveConfig,
   submitApplicationEvent,
 } from '../api/client';
-import type { AccountStatus, ActivityUpdatedMessage, ApplicationEventResponse, JobApplication, StoredConfig } from '../types';
+import type {
+  AccountStatus,
+  ActivityUpdatedMessage,
+  ApplicationEventResponse,
+  JobApplication,
+  StoredConfig,
+  TrackingStatus,
+  TrackingStatusMessage,
+} from '../types';
+import { TRACKING_STATUS_STORAGE_KEY } from '../types';
 
 const form = document.getElementById('applicationForm') as HTMLFormElement;
 const companyInput = document.getElementById('company') as HTMLInputElement;
@@ -22,6 +31,10 @@ const activityList = document.getElementById('activityList') as HTMLUListElement
 const resumeSection = document.getElementById('resumeSection') as HTMLDivElement;
 const resumeEmpty = document.getElementById('resumeEmpty') as HTMLParagraphElement;
 const resumeDownloadLink = document.getElementById('resumeDownloadLink') as HTMLAnchorElement;
+const trackingDialog = document.getElementById('trackingDialog') as HTMLDivElement;
+const trackingIcon = document.getElementById('trackingIcon') as HTMLDivElement;
+const trackingDialogMessage = document.getElementById('trackingDialogMessage') as HTMLParagraphElement;
+const trackingDialogStep = document.getElementById('trackingDialogStep') as HTMLParagraphElement;
 
 async function prefillFromActiveTab(): Promise<void> {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -47,6 +60,58 @@ function applyAccountState(config: StoredConfig, accountStatus: AccountStatus | 
     pendingNotice.classList.remove('hidden');
     disableForm();
   }
+}
+
+// How long the terminal (success/duplicate/error) state stays visible before the dialog closes
+// itself and hands control of the panel back to the user.
+const TRACKING_DONE_DIALOG_HIDE_MS = 2_200;
+let trackingDoneTimeout: ReturnType<typeof setTimeout> | undefined;
+
+const TRACKING_OUTCOME_ICON: Record<Extract<TrackingStatus, { phase: 'done' }>['outcome'], string> = {
+  success: '✅',
+  duplicate: 'ℹ️',
+  error: '⚠️',
+};
+
+/** Shows/updates/hides the full-panel blocking dialog for the lifecycle of a single auto-tracked
+ * submission (see TrackingStatus in types/index.ts) - while it's visible, its `position: fixed`
+ * overlay sits above every other control in the panel, so the user physically can't click the
+ * manual form, resume link, etc. until this resolves to null (or the terminal state's own
+ * auto-hide timer fires). */
+function renderTrackingStatus(status: TrackingStatus | null): void {
+  if (trackingDoneTimeout !== undefined) {
+    clearTimeout(trackingDoneTimeout);
+    trackingDoneTimeout = undefined;
+  }
+
+  if (!status) {
+    trackingDialog.classList.add('hidden');
+    return;
+  }
+
+  trackingDialog.classList.remove('hidden');
+  trackingDialogMessage.textContent = status.message;
+
+  if (status.phase === 'active') {
+    trackingDialog.classList.remove('tracking-dialog-done');
+    trackingDialogStep.textContent = `Step ${status.step} of ${status.totalSteps}`;
+    return;
+  }
+
+  trackingDialog.classList.add('tracking-dialog-done');
+  trackingIcon.textContent = TRACKING_OUTCOME_ICON[status.outcome];
+  trackingDialogStep.textContent = '';
+  trackingDoneTimeout = setTimeout(() => trackingDialog.classList.add('hidden'), TRACKING_DONE_DIALOG_HIDE_MS);
+}
+
+/** Reads whatever background.ts last persisted (see TRACKING_STATUS_STORAGE_KEY) so opening the
+ * panel mid-submission - or right after one just finished - shows the dialog immediately instead
+ * of only reacting to a live JATS_TRACKING_STATUS message that may have been sent while the panel
+ * was closed. */
+async function loadTrackingStatus(): Promise<void> {
+  const result = await chrome.storage.session.get(TRACKING_STATUS_STORAGE_KEY);
+  const status = result[TRACKING_STATUS_STORAGE_KEY] as TrackingStatus | undefined;
+  renderTrackingStatus(status ?? null);
 }
 
 /** Applicants only ever have a resume once a manager has approved them (uploading one is a
@@ -84,6 +149,7 @@ async function init(): Promise<void> {
   await prefillFromActiveTab();
   await loadActivity();
   await loadResume(config.accountStatus);
+  await loadTrackingStatus();
 
   if (!config.token) {
     return;
@@ -213,6 +279,14 @@ async function loadActivity(): Promise<void> {
 chrome.runtime.onMessage.addListener((message: ActivityUpdatedMessage) => {
   if (message.type === 'JATS_ACTIVITY_UPDATED') {
     void loadActivity();
+  }
+});
+
+// background.ts pushes one of these on every stage of an in-flight auto-tracked submission — see
+// TrackingStatus in types/index.ts.
+chrome.runtime.onMessage.addListener((message: TrackingStatusMessage) => {
+  if (message.type === 'JATS_TRACKING_STATUS') {
+    renderTrackingStatus(message.status);
   }
 });
 

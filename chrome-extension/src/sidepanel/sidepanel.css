@@ -276,3 +276,68 @@ button:disabled {
 .resume-download:hover {
   background: #15803d;
 }
+
+/* Blocking dialog shown while an auto-tracked submission is in flight (detect -> capture
+   screenshot -> upload -> send to server) — covers the entire panel so the user can't interact
+   with anything underneath (e.g. submit the manual form mid-upload) until it's done. */
+.tracking-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: rgba(248, 250, 252, 0.97);
+}
+
+.tracking-dialog-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 260px;
+}
+
+.tracking-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: jats-tracking-spin 0.8s linear infinite;
+}
+
+@keyframes jats-tracking-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tracking-dialog-icon {
+  display: none;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.tracking-dialog-done .tracking-spinner {
+  display: none;
+}
+
+.tracking-dialog-done .tracking-dialog-icon {
+  display: block;
+}
+
+.tracking-dialog-message {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.tracking-dialog-step {
+  margin: 0;
+  font-size: 11px;
+  color: #64748b;
+}

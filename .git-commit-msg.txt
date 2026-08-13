@@ -1,0 +1,8 @@
+Block the side panel with a status dialog while an application is being tracked
+
+Auto-tracking a submission (detect -> capture screenshot -> upload -> send to
+server) already showed progress via an OS notification, but the side panel itself
+stayed fully interactive in the meantime, so a user could e.g. submit the manual
+form mid-upload. background.ts now also persists/broadcasts each stage as a
+TrackingStatus, and the side panel renders it as a full-panel blocking dialog that
+only clears once the submission reaches a terminal state (success/duplicate/error).

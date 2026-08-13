@@ -88,6 +88,16 @@ export interface JobApplication {
   updatedAt: string;
 }
 
+/** Matches backend/app/resumes/schemas.py's ResumeResponse — a manager-uploaded resume the
+ * applicant needs for job applications. Resumes are append-only/versioned server-side; the side
+ * panel only ever shows the newest one (see sidepanel.ts's loadResume). */
+export interface ManagedResume {
+  id: string;
+  fileUrl: string;
+  version: number;
+  createdAt: string;
+}
+
 /** Matches backend/app/common/schemas.py's PageResponse envelope. */
 export interface PageResponse<T> {
   items: T[];

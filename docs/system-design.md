@@ -6,9 +6,10 @@ JATS tracks job applications that a user submits **manually** on external platfo
 Indeed, company career sites). It is not a job board, crawler, auto-apply bot, or resume
 generator. A Chrome Extension captures the submission event and sends it to the backend; a web
 dashboard lets the applicant review their history (view-only — applicants can't edit
-status/profile/resume themselves); a manager dashboard provides analytics across all users plus
-the authority to approve/reject accounts, correct an applicant's pipeline status, and hard-delete
-users or individual application records.
+status/profile themselves, and can't upload their own resume either — see Section 4); a manager
+dashboard provides analytics across all users plus the authority to approve/reject accounts
+(uploading the applicant's resume is a prerequisite for approval), correct an applicant's pipeline
+status, and hard-delete users or individual application records.
 
 ## 2. High-Level Architecture
 
@@ -49,7 +50,7 @@ premature for current load and complexity.
 |---|---|
 | `auth` | Registration, login, JWT issuing/validation, role-based authorization |
 | `user` | User profile CRUD |
-| `resume` | Resume metadata (file URL, version) — files live in S3-compatible storage, never in Postgres |
+| `resume` | Resume metadata (file URL, version) — files live in S3-compatible storage, never in Postgres. Uploaded by a manager on the applicant's behalf (see Section 4), read-only for the applicant |
 | `tracking` | Application event ingestion, duplicate detection, application CRUD, status history |
 | `notification` | In-app notifications (duplicate warnings, status updates) |
 | `dashboard` | Aggregation APIs plus account/application moderation (approve/reject, status correction, hard delete) for the Manager role |
@@ -65,12 +66,21 @@ Two roles: `USER` (job applicant, view-only over their own tracked applications)
 hard-delete users or individual applications).
 
 **Account approval gate:** self-registered accounts start as `PENDING_APPROVAL`. A user in this
-state can log in and manage their profile/resume, but **cannot submit application events** until
-a manager approves the account (`ACTIVE`). This matches the intended operational flow: a manager
-reviews new applicants before they start actively tracking data through the extension.
+state can log in, but **cannot submit application events** until a manager approves the account
+(`ACTIVE`). This matches the intended operational flow: a manager reviews new applicants before
+they start actively tracking data through the extension.
+
+**Resume-before-approval gate:** a manager can't approve an applicant's account until they've
+uploaded a resume for that applicant (`POST /manager/users/{id}/resumes`, backed by the same
+presigned-upload flow as Section 8's "Resume upload flow", just targeting the applicant's
+`user_id` instead of the caller's own — enforced server-side in `dashboard.service.approve`, not
+just as a disabled button on the frontend). This is intentional: the applicant is expected to use
+that manager-provided resume for every application they track, so it needs to exist before they're
+allowed to start. Once ACTIVE, the applicant can see and download it (but not replace it) from the
+Chrome extension's side panel.
 
 ```
-register → PENDING_APPROVAL ──(manager approves)──▶ ACTIVE ──▶ can submit application events
+register → PENDING_APPROVAL ──(manager uploads resume, then approves)──▶ ACTIVE ──▶ can submit application events
                               └──(manager rejects)──▶ REJECTED
 ```
 
@@ -168,10 +178,11 @@ User
   GET    /users/me/profile
   PUT    /users/me/profile
 
-Resume
+Resume (applicant-facing; upload endpoints below are only ever called by a MANAGER in practice —
+see the Manager Dashboard section — the applicant's own use is read/download only)
   POST   /resumes/upload-url             Get a presigned S3 PUT URL + object key
   POST   /resumes                        Register new resume version (file already uploaded to S3)
-  GET    /resumes
+  GET    /resumes                        Newest version first — what the Chrome extension's side panel reads
   GET    /resumes/{id}
   DELETE /resumes/{id}
 
@@ -192,9 +203,13 @@ Manager Dashboard (role = MANAGER)
   GET    /manager/stats/applications     Status breakdown & trends (optional ?userId= to scope to one applicant)
   GET    /manager/users                  User list + activity metrics
   GET    /manager/users/{id}             Single applicant + activity metrics (for the detail page)
-  PATCH  /manager/users/{id}/approve
+  PATCH  /manager/users/{id}/approve     400s if this applicant has no resume on file yet
   PATCH  /manager/users/{id}/reject
   DELETE /manager/users/{id}             Hard-deletes the account and all owned data
+  GET    /manager/users/{id}/resumes     Same shape as GET /resumes, scoped to this applicant
+  POST   /manager/users/{id}/resumes/upload-url  Manager uploads a resume on the applicant's behalf
+  POST   /manager/users/{id}/resumes     Register the uploaded resume (new version)
+  DELETE /manager/users/{id}/resumes/{resumeId}
   GET    /manager/applications           Cross-user application feed (optional ?userId=, ?status=)
   PATCH  /manager/applications/{id}/status   Manager-driven pipeline stage change (writes application_history)
   DELETE /manager/applications/{id}      Deletes a single tracked application
@@ -247,16 +262,22 @@ tied 1:1 to a single application (no separate registration step, no versioning):
 
 ### Resume upload flow
 
-The backend never proxies file bytes — it only issues presigned URLs and stores metadata:
+The backend never proxies file bytes — it only issues presigned URLs and stores metadata. In
+practice this flow is only ever driven by a manager against `/manager/users/{id}/resumes*`
+(targeting the applicant's `user_id`); the applicant-facing `/resumes*` endpoints below have
+identical semantics and are what the manager-scoped ones delegate to internally, they're just not
+exposed anywhere in the web UI for applicants to call themselves:
 
 1. `POST /resumes/upload-url` with `{ fileName, contentType }` → backend generates a unique object
    key (`resumes/{userId}/{uuid}-{fileName}`) and returns a short-lived (5 min) presigned PUT URL
    pointing directly at the S3-compatible store, plus the `key` and eventual public `fileUrl`.
 2. The client `PUT`s the file directly to that URL with the **same** `Content-Type` header (it's
    part of the signed request; a mismatch fails signature validation).
-3. `POST /resumes` with `{ key }` → backend verifies the key is prefixed with the caller's own
-   `userId` (rejecting an attempt to register another user's object), computes the next version
-   number, and persists the metadata row.
+3. `POST /resumes` with `{ key }` → backend verifies the key is prefixed with the target `userId`
+   (rejecting an attempt to register an object under a different user's prefix), computes the next
+   version number, and persists the metadata row. Re-uploading (e.g. the manager replacing an
+   outdated resume) doesn't delete the previous version — it just becomes stale; `latestResume` on
+   `ManagerUserResponse` and the extension's side panel always resolve to the highest version.
 
 Two S3 endpoints are configured (`app.storage.s3.endpoint` / `public-endpoint`) because the
 presigned URL and the stored `file_url` must be reachable from the *browser*, which may differ

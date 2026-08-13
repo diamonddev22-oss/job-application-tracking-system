@@ -1,4 +1,11 @@
-import { fetchCurrentUser, fetchRecentApplications, getConfig, saveConfig, submitApplicationEvent } from '../api/client';
+import {
+  fetchCurrentUser,
+  fetchMyResumes,
+  fetchRecentApplications,
+  getConfig,
+  saveConfig,
+  submitApplicationEvent,
+} from '../api/client';
 import type { AccountStatus, ActivityUpdatedMessage, ApplicationEventResponse, JobApplication, StoredConfig } from '../types';
 
 const form = document.getElementById('applicationForm') as HTMLFormElement;
@@ -12,6 +19,9 @@ const pendingNotice = document.getElementById('pendingNotice') as HTMLDivElement
 const openOptionsBtn = document.getElementById('openOptionsBtn') as HTMLButtonElement;
 const activityEmpty = document.getElementById('activityEmpty') as HTMLParagraphElement;
 const activityList = document.getElementById('activityList') as HTMLUListElement;
+const resumeSection = document.getElementById('resumeSection') as HTMLDivElement;
+const resumeEmpty = document.getElementById('resumeEmpty') as HTMLParagraphElement;
+const resumeDownloadLink = document.getElementById('resumeDownloadLink') as HTMLAnchorElement;
 
 async function prefillFromActiveTab(): Promise<void> {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -39,11 +49,41 @@ function applyAccountState(config: StoredConfig, accountStatus: AccountStatus | 
   }
 }
 
+/** Applicants only ever have a resume once a manager has approved them (uploading one is a
+ * prerequisite for approval — see the web dashboard's ManagerUserRow), so this section only
+ * bothers showing/fetching anything once the account is actually ACTIVE. */
+async function loadResume(accountStatus: AccountStatus | null): Promise<void> {
+  if (accountStatus !== 'ACTIVE') {
+    resumeSection.classList.add('hidden');
+    return;
+  }
+
+  resumeSection.classList.remove('hidden');
+  try {
+    const resumes = await fetchMyResumes();
+    const latest = resumes[0]; // GET /resumes is already newest-version-first
+    if (latest) {
+      resumeEmpty.classList.add('hidden');
+      resumeDownloadLink.classList.remove('hidden');
+      resumeDownloadLink.href = latest.fileUrl;
+    } else {
+      resumeEmpty.textContent = "No resume on file yet — your manager hasn't uploaded one.";
+      resumeEmpty.classList.remove('hidden');
+      resumeDownloadLink.classList.add('hidden');
+    }
+  } catch (error) {
+    resumeEmpty.textContent = error instanceof Error ? error.message : 'Failed to load your resume.';
+    resumeEmpty.classList.remove('hidden');
+    resumeDownloadLink.classList.add('hidden');
+  }
+}
+
 async function init(): Promise<void> {
   const config = await getConfig();
   applyAccountState(config, config.accountStatus);
   await prefillFromActiveTab();
   await loadActivity();
+  await loadResume(config.accountStatus);
 
   if (!config.token) {
     return;
@@ -59,6 +99,7 @@ async function init(): Promise<void> {
       pendingNotice.classList.add('hidden');
       form.querySelectorAll('input, button').forEach((el) => el.removeAttribute('disabled'));
       applyAccountState(config, user.status);
+      await loadResume(user.status);
     }
   } catch {
     // Offline or token expired — the form already reflects the last known status.

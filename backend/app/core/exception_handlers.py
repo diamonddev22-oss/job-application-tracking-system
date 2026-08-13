@@ -10,6 +10,7 @@ from app.core.exceptions import (
     AccountNotActiveException,
     DuplicateResourceException,
     InvalidCredentialsException,
+    InvalidStateException,
     NotAuthenticatedException,
     ResourceNotFoundException,
 )
@@ -66,6 +67,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AccessDeniedException)
     async def handle_access_denied(_request: Request, exc: AccessDeniedException) -> JSONResponse:
         return _build(status.HTTP_403_FORBIDDEN, exc.message)
+
+    @app.exception_handler(InvalidStateException)
+    async def handle_invalid_state(_request: Request, exc: InvalidStateException) -> JSONResponse:
+        return _build(status.HTTP_400_BAD_REQUEST, exc.message)
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation(_request: Request, exc: RequestValidationError) -> JSONResponse:

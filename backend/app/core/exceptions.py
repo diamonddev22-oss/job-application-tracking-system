@@ -36,3 +36,12 @@ class NotAuthenticatedException(Exception):
 class AccessDeniedException(Exception):
     def __init__(self, message: str = "You do not have permission to perform this action"):
         self.message = message
+
+
+class InvalidStateException(Exception):
+    """The request is well-formed, but the action can't be performed given the current state of
+    the resource (e.g. approving an applicant who has no resume on file yet) — distinct from
+    RequestValidationError, which is about malformed input, not resource state."""
+
+    def __init__(self, message: str = "This action cannot be performed right now"):
+        self.message = message

@@ -5,6 +5,7 @@ import type {
   AuthResponseData,
   JobApplication,
   LoginResponse,
+  ManagedResume,
   PageResponse,
   ScreenshotUploadUrlResponse,
   StoredConfig,
@@ -164,6 +165,29 @@ export async function createScreenshotUploadUrl(contentType: string): Promise<Sc
 
   if (!response.ok || !envelope?.data) {
     throw new Error(envelope?.message ?? `Failed to get screenshot upload URL (${response.status})`);
+  }
+
+  return envelope.data;
+}
+
+/** The manager-uploaded resume(s) on file for the logged-in account (newest version first) — the
+ * same GET /api/resumes an applicant would've used to manage their own resumes back when that was
+ * self-service; now it's manager-only uploads (see the web dashboard's ManagerUserRow), and this
+ * is just how the applicant reads what's there. */
+export async function fetchMyResumes(): Promise<ManagedResume[]> {
+  const config = await getConfig();
+  if (!config.token) {
+    throw new Error('Not logged in.');
+  }
+
+  const response = await safeFetch('/resumes', {
+    headers: { Authorization: `Bearer ${config.token}` },
+  });
+
+  const envelope = (await response.json().catch(() => null)) as ApiEnvelope<ManagedResume[]> | null;
+
+  if (!response.ok || !envelope?.data) {
+    throw new Error(envelope?.message ?? `Failed to load resume (${response.status})`);
   }
 
   return envelope.data;

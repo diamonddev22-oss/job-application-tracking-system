@@ -10,6 +10,7 @@ import {
   listManagedUsers,
   rejectUser,
   updateApplicationStatus,
+  uploadManagerResume,
   type ListAllApplicationsParams,
   type ListManagedUsersParams,
 } from '../api/manager';
@@ -95,6 +96,16 @@ export function useUpdateApplicationStatusMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: ApplicationStatus }) => updateApplicationStatus(id, status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['manager'] });
+    },
+  });
+}
+
+export function useUploadManagerResumeMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, file }: { userId: string; file: File }) => uploadManagerResume(userId, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['manager'] });
     },

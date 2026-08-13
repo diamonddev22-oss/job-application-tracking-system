@@ -99,14 +99,15 @@ export function ManagerDashboardPage() {
           )}
           {users && users.items.length > 0 && (
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Applicant</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Applications</th>
-                  <th className="px-4 py-3">Actions</th>
-                </tr>
-              </thead>
+                  <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Applicant</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Resume</th>
+                      <th className="px-4 py-3">Applications</th>
+                      <th className="px-4 py-3">Actions</th>
+                    </tr>
+                  </thead>
               <tbody>
                 {users.items.map((user) => (
                   <ManagerUserRow key={user.id} user={user} />

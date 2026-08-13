@@ -13,6 +13,7 @@ from app.dashboard.schemas import (
     ManagerUserResponse,
     OverviewStatsResponse,
 )
+from app.resumes.schemas import RegisterResumeRequest, ResumeResponse, UploadUrlRequest, UploadUrlResponse
 from app.tracking.enums import ApplicationStatus
 from app.tracking.schemas import UpdateStatusRequest
 from app.users.enums import AccountStatus
@@ -73,6 +74,38 @@ def reject(user_id: uuid.UUID, db: Session = Depends(get_db)) -> ApiResponse[Man
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(user_id: uuid.UUID, db: Session = Depends(get_db)) -> Response:
     service.delete_user(db, user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Resume-on-file management ------------------------------------------------------------------
+# The applicant must have a resume on file *before* a manager can approve their account (enforced
+# in service.approve) — these mirror /api/resumes' presigned-upload flow, just scoped to a
+# specific applicant (`user_id` from the path) rather than the caller's own account, since it's the
+# manager uploading here, not the applicant.
+
+
+@router.get("/users/{user_id}/resumes", response_model=ApiResponse[list[ResumeResponse]])
+def list_user_resumes(user_id: uuid.UUID, db: Session = Depends(get_db)) -> ApiResponse[list[ResumeResponse]]:
+    return ApiResponse.of(service.list_user_resumes(db, user_id))
+
+
+@router.post("/users/{user_id}/resumes/upload-url", response_model=ApiResponse[UploadUrlResponse])
+def create_user_resume_upload_url(
+    user_id: uuid.UUID, request: UploadUrlRequest, db: Session = Depends(get_db)
+) -> ApiResponse[UploadUrlResponse]:
+    return ApiResponse.of(service.create_user_resume_upload_url(db, user_id, request))
+
+
+@router.post("/users/{user_id}/resumes", response_model=ApiResponse[ResumeResponse], status_code=status.HTTP_201_CREATED)
+def register_user_resume(
+    user_id: uuid.UUID, request: RegisterResumeRequest, db: Session = Depends(get_db)
+) -> ApiResponse[ResumeResponse]:
+    return ApiResponse.of(service.register_user_resume(db, user_id, request), "Resume uploaded")
+
+
+@router.delete("/users/{user_id}/resumes/{resume_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user_resume(user_id: uuid.UUID, resume_id: uuid.UUID, db: Session = Depends(get_db)) -> Response:
+    service.delete_user_resume(db, user_id, resume_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

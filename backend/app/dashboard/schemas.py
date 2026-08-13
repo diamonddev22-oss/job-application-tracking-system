@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from app.resumes.schemas import ResumeResponse
 from app.tracking.enums import ApplicationStatus
 from app.users.enums import AccountStatus, Role
 
@@ -36,6 +37,11 @@ class ManagerUserResponse(BaseModel):
     status: AccountStatus
     createdAt: datetime
     applicationCount: int
+    # The most recently uploaded resume (highest version) for this applicant, or None if the
+    # manager hasn't uploaded one yet — approving an account requires this to be set (see
+    # dashboard.service.approve). `null` rather than omitted so the frontend can gate the Approve
+    # button on its presence without a separate request.
+    latestResume: ResumeResponse | None = None
 
 
 class ManagerApplicationResponse(BaseModel):

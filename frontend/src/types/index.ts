@@ -93,6 +93,14 @@ export interface ApplicationStats {
   dailyTrend: DailyApplicationCount[];
 }
 
+/** A single uploaded resume version — see backend/app/resumes/schemas.py's ResumeResponse. */
+export interface ManagedResume {
+  id: string;
+  fileUrl: string;
+  version: number;
+  createdAt: string;
+}
+
 export interface ManagerUser {
   id: string;
   email: string;
@@ -100,6 +108,9 @@ export interface ManagerUser {
   status: AccountStatus;
   createdAt: string;
   applicationCount: number;
+  /** The most recently uploaded resume for this applicant, or null if the manager hasn't
+   * uploaded one yet. An applicant can't be approved without one — see ManagerUserRow. */
+  latestResume: ManagedResume | null;
 }
 
 export interface ManagerApplication {

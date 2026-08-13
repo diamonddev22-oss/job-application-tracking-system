@@ -4,6 +4,7 @@ import type {
   ApiEnvelope,
   ApplicationStats,
   ApplicationStatus,
+  ManagedResume,
   ManagerApplication,
   ManagerUser,
   OverviewStats,
@@ -87,5 +88,51 @@ export async function updateApplicationStatus(id: string, status: ApplicationSta
   const { data } = await apiClient.patch<ApiEnvelope<ManagerApplication>>(`/manager/applications/${id}/status`, {
     status,
   });
+  return data.data;
+}
+
+interface ResumeUploadUrlResponse {
+  uploadUrl: string;
+  key: string;
+  fileUrl: string;
+  expiresAt: string;
+}
+
+// Not every browser/OS reliably sets `file.type` for older Office formats — fall back to the
+// extension so the upload isn't rejected by the backend's content-type allowlist for no reason.
+const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+
+function resolveContentType(file: File): string {
+  if (file.type) return file.type;
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return CONTENT_TYPE_BY_EXTENSION[extension] ?? '';
+}
+
+/** Uploads a resume on an applicant's behalf: presigned PUT straight to S3/MinIO/R2 (never through
+ * the backend), then registers the resulting object as a new resume version for that user. Mirrors
+ * the applicant-facing flow in backend/app/resumes, just targeting `userId` from the manager side
+ * instead of the caller's own account. */
+export async function uploadManagerResume(userId: string, file: File): Promise<ManagedResume> {
+  const contentType = resolveContentType(file);
+  if (!contentType) {
+    throw new Error('Only PDF and Word documents (.pdf, .doc, .docx) are supported.');
+  }
+
+  const { data: uploadUrlEnvelope } = await apiClient.post<ApiEnvelope<ResumeUploadUrlResponse>>(
+    `/manager/users/${userId}/resumes/upload-url`,
+    { fileName: file.name, contentType },
+  );
+  const { uploadUrl, key } = uploadUrlEnvelope.data;
+
+  const putResponse = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file });
+  if (!putResponse.ok) {
+    throw new Error(`Resume upload to storage failed (${putResponse.status})`);
+  }
+
+  const { data } = await apiClient.post<ApiEnvelope<ManagedResume>>(`/manager/users/${userId}/resumes`, { key });
   return data.data;
 }

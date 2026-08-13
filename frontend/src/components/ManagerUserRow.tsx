@@ -4,6 +4,7 @@ import { useApproveUserMutation, useDeleteUserMutation, useRejectUserMutation } 
 import { APPLICATION_GOAL, type ManagerUser } from '../types';
 import { formatDate } from '../utils/format';
 import { GoalProgressBar } from './GoalProgressRing';
+import { ResumeUploadControl } from './ResumeUploadControl';
 import { AccountStatusBadge } from './StatusBadge';
 
 export function ManagerUserRow({ user }: { user: ManagerUser }) {
@@ -46,6 +47,9 @@ export function ManagerUserRow({ user }: { user: ManagerUser }) {
         <AccountStatusBadge status={user.status} />
       </td>
       <td className="px-4 py-3">
+        <ResumeUploadControl userId={user.id} resume={user.latestResume} />
+      </td>
+      <td className="px-4 py-3">
         <GoalProgressBar current={user.applicationCount} goal={APPLICATION_GOAL} />
       </td>
       <td className="px-4 py-3">
@@ -53,8 +57,9 @@ export function ManagerUserRow({ user }: { user: ManagerUser }) {
           {user.status !== 'ACTIVE' && (
             <button
               type="button"
-              disabled={isPending}
+              disabled={isPending || !user.latestResume}
               onClick={() => approveMutation.mutate(user.id)}
+              title={user.latestResume ? undefined : 'Upload a resume for this applicant before approving'}
               className="btn-outline-success btn-sm"
             >
               Approve

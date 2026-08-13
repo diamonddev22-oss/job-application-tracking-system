@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.common.pagination import paginate
 from app.common.schemas import PageResponse
-from app.core.exceptions import ResourceNotFoundException
+from app.core.exceptions import InvalidStateException, ResourceNotFoundException
 from app.dashboard.schemas import (
     ApplicationStatsResponse,
     DailyApplicationCount,
@@ -14,7 +14,9 @@ from app.dashboard.schemas import (
     ManagerUserResponse,
     OverviewStatsResponse,
 )
+from app.resumes import service as resumes_service
 from app.resumes.models import Resume
+from app.resumes.schemas import RegisterResumeRequest, ResumeResponse, UploadUrlRequest, UploadUrlResponse
 from app.resumes.storage import ResumeStorage
 from app.tracking.enums import ApplicationStatus
 from app.tracking.models import ApplicationHistory, JobApplication
@@ -68,10 +70,12 @@ def list_users(
 
     items, total_elements, total_pages, last = paginate(query, page, size)
 
-    counts = _application_counts_for(db, [user.id for user in items])
+    user_ids = [user.id for user in items]
+    counts = _application_counts_for(db, user_ids)
+    latest_resumes = _latest_resumes_for(db, user_ids)
 
     return PageResponse(
-        items=[_to_response(user, counts.get(user.id, 0)) for user in items],
+        items=[_to_response(user, counts.get(user.id, 0), latest_resumes.get(user.id)) for user in items],
         page=page,
         size=size,
         totalElements=total_elements,
@@ -83,10 +87,14 @@ def list_users(
 def get_user(db: Session, user_id: uuid.UUID) -> ManagerUserResponse:
     user = _find_managed_user(db, user_id)
     application_count = db.query(JobApplication).filter(JobApplication.user_id == user_id).count()
-    return _to_response(user, application_count)
+    latest_resume = _latest_resumes_for(db, [user_id]).get(user_id)
+    return _to_response(user, application_count, latest_resume)
 
 
 def approve(db: Session, user_id: uuid.UUID) -> ManagerUserResponse:
+    _find_managed_user(db, user_id)  # 404s before the resume check if the id is just wrong
+    if db.query(Resume).filter(Resume.user_id == user_id).first() is None:
+        raise InvalidStateException("Upload a resume for this applicant before approving their account")
     return _update_status(db, user_id, AccountStatus.ACTIVE)
 
 
@@ -188,6 +196,29 @@ def delete_application(db: Session, application_id: uuid.UUID) -> None:
     db.commit()
 
 
+def list_user_resumes(db: Session, user_id: uuid.UUID) -> list[ResumeResponse]:
+    _find_managed_user(db, user_id)
+    return resumes_service.list_resumes(db, user_id)
+
+
+def create_user_resume_upload_url(db: Session, user_id: uuid.UUID, request: UploadUrlRequest) -> UploadUrlResponse:
+    """The manager-side counterpart of the applicant's own POST /resumes/upload-url — same
+    presigned-PUT flow, just targeting a specific applicant's `user_id` instead of the caller's
+    own, since the manager (not the applicant) is the one uploading here."""
+    _find_managed_user(db, user_id)
+    return resumes_service.create_upload_url(user_id, request)
+
+
+def register_user_resume(db: Session, user_id: uuid.UUID, request: RegisterResumeRequest) -> ResumeResponse:
+    _find_managed_user(db, user_id)
+    return resumes_service.register(db, user_id, request)
+
+
+def delete_user_resume(db: Session, user_id: uuid.UUID, resume_id: uuid.UUID) -> None:
+    _find_managed_user(db, user_id)
+    resumes_service.delete(db, user_id, resume_id)
+
+
 def _update_status(db: Session, user_id: uuid.UUID, new_status: AccountStatus) -> ManagerUserResponse:
     user = _find_managed_user(db, user_id)
     user.status = new_status
@@ -195,7 +226,8 @@ def _update_status(db: Session, user_id: uuid.UUID, new_status: AccountStatus) -
     db.refresh(user)
 
     application_count = db.query(JobApplication).filter(JobApplication.user_id == user_id).count()
-    return _to_response(user, application_count)
+    latest_resume = _latest_resumes_for(db, [user_id]).get(user_id)
+    return _to_response(user, application_count, latest_resume)
 
 
 def _find_managed_user(db: Session, user_id: uuid.UUID) -> User:
@@ -215,6 +247,23 @@ def _application_counts_for(db: Session, user_ids: list[uuid.UUID]) -> dict[uuid
         .all()
     )
     return dict(rows)
+
+
+def _latest_resumes_for(db: Session, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, Resume]:
+    """Highest-`version` resume per user_id - resumes are append-only/versioned (see
+    resumes.service.register), so "the current resume" is always whichever version is newest.
+    Fetched in bulk (like _application_counts_for) rather than one query per row in list_users.
+    Ordering by version desc and keeping the first Resume seen per user_id avoids needing a
+    window-function query for what's normally at most a handful of rows per user."""
+    if not user_ids:
+        return {}
+    rows = (
+        db.query(Resume).filter(Resume.user_id.in_(user_ids)).order_by(Resume.user_id, Resume.version.desc()).all()
+    )
+    latest: dict[uuid.UUID, Resume] = {}
+    for resume in rows:
+        latest.setdefault(resume.user_id, resume)
+    return latest
 
 
 def _build_daily_trend(db: Session, user_id_filter: uuid.UUID | None = None) -> list[DailyApplicationCount]:
@@ -252,7 +301,7 @@ def _to_application_response(application: JobApplication, user: User) -> Manager
     )
 
 
-def _to_response(user: User, application_count: int) -> ManagerUserResponse:
+def _to_response(user: User, application_count: int, latest_resume: Resume | None = None) -> ManagerUserResponse:
     return ManagerUserResponse(
         id=user.id,
         email=user.email,
@@ -260,4 +309,9 @@ def _to_response(user: User, application_count: int) -> ManagerUserResponse:
         status=user.status,
         createdAt=user.created_at,
         applicationCount=application_count,
+        latestResume=_to_resume_response(latest_resume) if latest_resume is not None else None,
     )
+
+
+def _to_resume_response(resume: Resume) -> ResumeResponse:
+    return ResumeResponse(id=resume.id, fileUrl=resume.file_url, version=resume.version, createdAt=resume.created_at)
